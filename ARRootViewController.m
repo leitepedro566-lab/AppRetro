@@ -3,11 +3,6 @@
 #import "ARVersionViewController.h"
 #import "ARDowngradeManager.h"
 
-// 静态字符串解密宏
-static inline NSString * OBF(NSString *base64) {
-    return [[NSString alloc] initWithData:[[NSData alloc] initWithBase64EncodedString:base64 options:0] encoding:NSUTF8StringEncoding];
-}
-
 @interface ARRootViewController () <UISearchResultsUpdating>
 @property (nonatomic, strong) NSArray *allApps;
 @property (nonatomic, strong) NSArray *filteredApps;
@@ -28,11 +23,11 @@ static inline NSString * OBF(NSString *base64) {
     self.tableView.separatorColor = [UIColor clearColor];
     self.tableView.showsVerticalScrollIndicator = NO;
     
-    // 初始化搜索框
+    // 初始化顶部搜索框
     self.searchController = [[UISearchController alloc] initWithSearchResultsController:nil];
     self.searchController.searchResultsUpdater = self;
     self.searchController.obscuresBackgroundDuringPresentation = NO;
-    self.searchController.searchBar.placeholder = @"搜索应用";
+    self.searchController.searchBar.placeholder = @"搜索应用 (Search Apps)";
     self.navigationItem.searchController = self.searchController;
     self.definesPresentationContext = YES;
     self.navigationItem.hidesSearchBarWhenScrolling = NO;
@@ -41,24 +36,24 @@ static inline NSString * OBF(NSString *base64) {
 }
 
 - (void)loadInstalledApps {
-    // 解密类与方法: LSApplicationWorkspace / defaultWorkspace / allInstalledApplications
-    id workspace = [NSClassFromString(OBF(@"TFNBcHBsaWNhdGlvbldvcmtzcGFjZQ==")) performSelector:NSSelectorFromString(OBF(@"ZGVmYXVsdFdvcmtzcGFjZQ=="))];
-    NSArray *apps = [workspace performSelector:NSSelectorFromString(OBF(@"YWxsSW5zdGFsbGVkQXBwbGljYXRpb25z"))];
+    // 解密: LSApplicationWorkspace / defaultWorkspace / allInstalledApplications
+    id workspace = [NSClassFromString(HEX_DEC("4C534170706C69636174696F6E576F726B7370616365")) performSelector:NSSelectorFromString(HEX_DEC("64656661756C74576F726B7370616365"))];
+    NSArray *apps = [workspace performSelector:NSSelectorFromString(HEX_DEC("616C6C496E7374616C6C65644170706C69636174696F6E73"))];
     NSMutableArray *validApps = [NSMutableArray array];
     
     for (id proxy in apps) {
         NSString *bundleID = [proxy performSelector:@selector(bundleIdentifier)];
         if (!bundleID) continue;
         
-        // 过滤 com.apple.* (解密字符串: com.apple.)
-        if ([bundleID hasPrefix:OBF(@"Y29tLmFwcGxlLg==")]) {
+        // 过滤 com.apple. (系统应用)
+        if ([bundleID hasPrefix:HEX_DEC("636F6D2E6170706C652E")]) {
             continue;
         }
         
-        // 过滤巨魔应用 (解密方法: bundleURL, 解密字符: _TrollStore)
-        NSURL *bundleURL = [proxy respondsToSelector:NSSelectorFromString(OBF(@"YnVuZGxlVVJM"))] ? [proxy performSelector:NSSelectorFromString(OBF(@"YnVuZGxlVVJM"))] : nil;
+        // 获取 URL 判断是否包含巨魔 _TrollStore 标识文件
+        NSURL *bundleURL = [proxy respondsToSelector:NSSelectorFromString(HEX_DEC("62756E646C6555524C"))] ? [proxy performSelector:NSSelectorFromString(HEX_DEC("62756E646C6555524C"))] : nil;
         if (bundleURL) {
-            NSString *trollStorePath = [bundleURL.path stringByAppendingPathComponent:OBF(@"X1Ryb2xsU3RvcmU=")];
+            NSString *trollStorePath = [bundleURL.path stringByAppendingPathComponent:HEX_DEC("5F54726F6C6C53746F7265")]; // "_TrollStore"
             if ([[NSFileManager defaultManager] fileExistsAtPath:trollStorePath]) {
                 continue;
             }
@@ -79,7 +74,6 @@ static inline NSString * OBF(NSString *base64) {
 }
 
 #pragma mark - Search Filtering
-
 - (void)updateSearchResultsForSearchController:(UISearchController *)searchController {
     NSString *searchText = searchController.searchBar.text.lowercaseString;
     if (searchText.length == 0) {
@@ -89,7 +83,6 @@ static inline NSString * OBF(NSString *base64) {
         for (id proxy in self.allApps) {
             NSString *bundleID = [proxy performSelector:@selector(bundleIdentifier)];
             NSString *name = [proxy respondsToSelector:@selector(localizedName)] ? [proxy performSelector:@selector(localizedName)] : bundleID;
-            
             if ([name.lowercaseString containsString:searchText] || [bundleID.lowercaseString containsString:searchText]) {
                 [results addObject:proxy];
             }
@@ -100,7 +93,6 @@ static inline NSString * OBF(NSString *base64) {
 }
 
 #pragma mark - TableView Delegate & DataSource
-
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
     return self.filteredApps.count;
 }
@@ -112,7 +104,8 @@ static inline NSString * OBF(NSString *base64) {
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"AppCell"];
     if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"AppCell"];
+        // 使用 Value1 样式让副标题显示在右侧
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:@"AppCell"];
         cell.imageView.layer.masksToBounds = YES;
         cell.imageView.layer.cornerRadius = 8.0;
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
@@ -122,16 +115,18 @@ static inline NSString * OBF(NSString *base64) {
     NSString *bundleID = [proxy performSelector:@selector(bundleIdentifier)];
     NSString *name = [proxy respondsToSelector:@selector(localizedName)] ? [proxy performSelector:@selector(localizedName)] : bundleID;
     
-    // 获取当前应用版本号 (解密方法: shortVersionString)
+    // 获取当前版本号
     NSString *version = @"未知";
-    SEL versionSel = NSSelectorFromString(OBF(@"c2hvcnRWZXJzaW9uU3RyaW5n"));
+    SEL versionSel = NSSelectorFromString(HEX_DEC("73686F727456657273696F6E537472696E67")); // "shortVersionString"
     if ([proxy respondsToSelector:versionSel]) {
         version = [proxy performSelector:versionSel];
     }
     
     cell.textLabel.text = name;
-    // 将版本号优雅地显示在 bundleID 旁边
-    cell.detailTextLabel.text = [NSString stringWithFormat:@"%@  ·  v%@", bundleID, version];
+    // 将应用 bundleID 拼接版本号展示在右侧页面边缘
+    cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ · v%@", bundleID, version];
+    cell.detailTextLabel.font = [UIFont systemFontOfSize:11];
+    cell.detailTextLabel.textColor = [UIColor systemGrayColor];
     
     if ([UIImage respondsToSelector:@selector(_applicationIconImageForBundleIdentifier:format:scale:)]) {
         cell.imageView.image = [UIImage performSelector:@selector(_applicationIconImageForBundleIdentifier:format:scale:) withObject:bundleID withObject:@(1) withObject:@([UIScreen mainScreen].scale)];
@@ -139,24 +134,10 @@ static inline NSString * OBF(NSString *base64) {
     return cell;
 }
 
+// 圆润的药丸边角 UI 处理
 - (void)tableView:(UITableView *)tableView willDisplayCell:(UITableViewCell *)cell forRowAtIndexPath:(NSIndexPath *)indexPath {
-    NSInteger numberOfRows = [tableView numberOfRowsInSection:indexPath.section];
-    BOOL isFirst = (indexPath.row == 0);
-    BOOL isLast = (indexPath.row == numberOfRows - 1);
-
     CGFloat radius = 25.0;
-    CACornerMask mask = 0;
-
-    if (isFirst && isLast) {
-        mask = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
-    } else if (isFirst) {
-        mask = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner;
-    } else if (isLast) {
-        mask = kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
-    } else {
-        radius = 0;
-        mask = 0;
-    }
+    CACornerMask mask = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
 
     cell.layer.borderWidth = 0.0;
     cell.layer.borderColor = [UIColor clearColor].CGColor;
@@ -180,13 +161,10 @@ static inline NSString * OBF(NSString *base64) {
             cell.backgroundView.layer.borderWidth = 0.0;
         }
     }
-    
     if (@available(iOS 13.0, *)) cell.layer.cornerCurve = kCACornerCurveContinuous;
 }
 
-- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
-    return 65.0;
-}
+- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath { return 65.0; }
 - (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section { return 5.0; }
 - (CGFloat)tableView:(UITableView *)tableView heightForFooterInSection:(NSInteger)section { return 5.0; }
 - (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section { return [UIView new]; }
@@ -224,7 +202,8 @@ static inline NSString * OBF(NSString *base64) {
                 versionVC.bundleID = bundleID;
                 versionVC.appName = name;
                 versionVC.trackID = trackId;
-                versionVC.versions = [versions sortedArrayUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:@"release_date" ascending:NO]]];
+                // 注意这里用的是 HEX 解密，即使在 Version 页面引用也没问题
+                versionVC.versions = [versions sortedArrayUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:HEX_DEC("72656C656173655F64617465") ascending:NO]]]; // "release_date"
                 [self.navigationController pushViewController:versionVC animated:YES];
             }];
         }];

@@ -1,7 +1,7 @@
 name: Build AppRetro
 
 on:
- 
+  
   workflow_dispatch:
 
 jobs:
@@ -26,19 +26,21 @@ jobs:
           git clone --recursive https://github.com/theos/theos.git $THEOS
           
           echo "Cloning iOS SDKs..."
-          # 【核心修复】：强行删除 Theos 自带的空 sdks 文件夹，为克隆腾出位置
           rm -rf $THEOS/sdks
           git clone https://github.com/theos/sdks.git $THEOS/sdks
 
       - name: Build and Package
         run: |
-          # 编译并生成 .app
+          # 1. 编译并生成 deb 包
           make package FINALPACKAGE=1
           
-          # 手动构建 IPA
-          echo "手动打包 IPA..."
+          # 2. 从完美生成的 deb 包中提取并转换 IPA
+          echo "正在从 deb 提取并转换 IPA..."
+          mkdir -p deb_unpacked
+          dpkg-deb -x packages/*.deb deb_unpacked/
+          
           mkdir -p Payload
-          cp -r _/Applications/AppRetro.app Payload/
+          cp -r deb_unpacked/Applications/*.app Payload/
           zip -r9 AppRetro.ipa Payload
 
       - name: Upload Artifact

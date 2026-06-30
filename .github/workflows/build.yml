@@ -1,0 +1,53 @@
+name: Build AppRetro
+
+# 触发条件：推送到 main 分支、发 PR 或手动触发
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build IPA with Theos
+    runs-on: macos-latest
+    
+    env:
+      THEOS: ${{ github.workspace }}/theos
+      
+    steps:
+      # 1. 检出你的代码
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 2. 安装编译依赖环境 (ldid 用于签名，dpkg 用于打包)
+      - name: Install Dependencies
+        run: |
+          brew install ldid dpkg make
+
+      # 3. 配置 Theos 与 iOS SDK 环境
+      - name: Setup Theos & SDKs
+        run: |
+          echo "Cloning Theos..."
+          git clone --recursive https://github.com/theos/theos.git $THEOS
+          
+          echo "Cloning iOS SDKs..."
+          git clone https://github.com/theos/sdks.git $THEOS/sdks
+
+      # 4. 编译并打包出 IPA
+      - name: Build Package
+        run: |
+          # FINALPACKAGE=1 表示 Release 模式，去掉调试信息
+          # FORMAT=ipa 告诉 Theos 直接输出 .ipa 而不是 .deb，方便巨魔安装
+          make package FINALPACKAGE=1 FORMAT=ipa
+
+      # 5. 将生成的 IPA 文件上传到 GitHub 供下载
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AppRetro-Release
+          path: packages/*.ipa
+          if-no-files-found: error

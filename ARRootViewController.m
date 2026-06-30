@@ -23,26 +23,32 @@
     self.tableView.separatorColor = [UIColor clearColor];
     self.tableView.showsVerticalScrollIndicator = NO;
     
-    // 初始化顶部搜索框
+    // 1. 初始化顶部搜索框
     self.arSearchController = [[UISearchController alloc] initWithSearchResultsController:nil];
     self.arSearchController.searchResultsUpdater = self;
     self.arSearchController.obscuresBackgroundDuringPresentation = NO;
-    self.arSearchController.searchBar.placeholder = HEX_DEC("E6909CE7B4A2E5BA94E794A8"); // "搜索应用"
+    self.arSearchController.searchBar.placeholder = HEX_DEC("E6909CE7B4A2E5BA94E794A8202853656172636829"); // "搜索应用 (Search)"
     self.navigationItem.searchController = self.arSearchController;
     self.definesPresentationContext = YES;
     self.navigationItem.hidesSearchBarWhenScrolling = NO;
 
+    // 2. 右上角导航栏添加 TG频道 按钮
+    UIBarButtonItem *tgItem = [[UIBarButtonItem alloc] initWithTitle:HEX_DEC("5447E9A291E98193") style:UIBarButtonItemStylePlain target:self action:@selector(arOpenTGChannel)]; // "TG频道"
+    self.navigationItem.rightBarButtonItem = tgItem;
+
     [self loadInstalledApps];
+}
+
+- (void)arOpenTGChannel {
+    NSURL *url = [NSURL URLWithString:HEX_DEC("68747470733A2F2F742E6D652F696F7364756D707A7A7A")]; // "https://t.me/iosdumpzzz"
+    [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
 }
 
 - (void)loadInstalledApps {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-    
-    // 解密: LSApplicationWorkspace / defaultWorkspace / allInstalledApplications
     id workspace = [NSClassFromString(HEX_DEC("4C534170706C69636174696F6E576F726B7370616365")) performSelector:NSSelectorFromString(HEX_DEC("64656661756C74576F726B7370616365"))];
     NSArray *apps = [workspace performSelector:NSSelectorFromString(HEX_DEC("616C6C496E7374616C6C65644170706C69636174696F6E73"))];
-    
 #pragma clang diagnostic pop
 
     NSMutableArray *validApps = [NSMutableArray array];
@@ -54,17 +60,21 @@
 #pragma clang diagnostic pop
         if (!bundleID) continue;
         
-        // 过滤 com.apple. (系统应用)
+        // 过滤系统 com.apple. 开头应用
         if ([bundleID hasPrefix:HEX_DEC("636F6D2E6170706C652E")]) continue;
         
-        // 检查 _TrollStore 标识文件
+        // 🎯 核心路径修复：在 .app 的同级目录下查找排除 _TrollStore 标识文件
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
         NSURL *bundleURL = [proxy respondsToSelector:NSSelectorFromString(HEX_DEC("62756E646C6555524C"))] ? [proxy performSelector:NSSelectorFromString(HEX_DEC("62756E646C6555524C"))] : nil;
 #pragma clang diagnostic pop
         if (bundleURL) {
-            NSString *trollStorePath = [bundleURL.path stringByAppendingPathComponent:HEX_DEC("5F54726F6C6C53746F7265")]; // "_TrollStore"
-            if ([[NSFileManager defaultManager] fileExistsAtPath:trollStorePath]) continue;
+            // 获取 .app 目录的上一级目录（同级目录）
+            NSString *appParentDir = [bundleURL.path stringByDeletingLastPathComponent];
+            NSString *trollStorePath = [appParentDir stringByAppendingPathComponent:HEX_DEC("5F54726F6C6C53746F7265")]; // "_TrollStore"
+            if ([[NSFileManager defaultManager] fileExistsAtPath:trollStorePath]) {
+                continue; // 成功排除同级目录含有 _TrollStore 的巨魔安装 App
+            }
         }
         [validApps addObject:proxy];
     }
@@ -108,6 +118,8 @@
     [self.tableView reloadData];
 }
 
+#pragma mark - TableView Delegate & DataSource
+
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
     return self.arFilteredApps.count;
 }
@@ -120,10 +132,10 @@
     NSString *cellId = HEX_DEC("41707043656C6C"); // "AppCell"
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cellId];
     if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:cellId];
+        // 🎯 采用 Subtitle 样式，让包名完美展示在应用名称正下方
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:cellId];
         cell.imageView.layer.masksToBounds = YES;
-        cell.imageView.layer.cornerRadius = 8.0;
-        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+        cell.imageView.layer.cornerRadius = 12.0;
     }
     
     id proxy = self.arFilteredApps[indexPath.section];
@@ -134,7 +146,7 @@
     NSString *bundleID = [proxy performSelector:bundleSel];
     NSString *name = [proxy respondsToSelector:nameSel] ? [proxy performSelector:nameSel] : bundleID;
     
-    // 获取当前版本号 (shortVersionString)
+    // 获取当前短版本号 (shortVersionString)
     NSString *version = @"-";
     SEL versionSel = NSSelectorFromString(HEX_DEC("73686F727456657273696F6E537472696E67")); 
     if ([proxy respondsToSelector:versionSel]) {
@@ -143,11 +155,21 @@
 #pragma clang diagnostic pop
     
     cell.textLabel.text = name;
-    cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ · v%@", bundleID, version];
-    cell.detailTextLabel.font = [UIFont systemFontOfSize:11];
+    cell.textLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightBold];
+    
+    cell.detailTextLabel.text = bundleID; // 包名在 App 名字正下方
+    cell.detailTextLabel.font = [UIFont systemFontOfSize:12];
     cell.detailTextLabel.textColor = [UIColor systemGrayColor];
     
-    // 安全动态调用多参 UIImage 私有方法
+    // 🎯 动态创建一个靠右侧页面对齐显示的自定义 Label 展示版本号
+    UILabel *rightVerLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 75, 30)];
+    rightVerLabel.text = [NSString stringWithFormat:@"v%@", version];
+    rightVerLabel.font = [UIFont systemFontOfSize:13 weight:UIFontWeightMedium];
+    rightVerLabel.textColor = [UIColor secondaryLabelColor];
+    rightVerLabel.textAlignment = NSTextAlignmentRight;
+    cell.accessoryView = rightVerLabel; // 右侧对齐完美展示
+    
+    // 安全动态异步调用获取图标
     SEL iconSel = NSSelectorFromString(HEX_DEC("5F6170706C69636174696F6E49636F6E496D616765466F7242756E646C654964656E7469666965723A666F726D61743A7363616C653A"));
     if ([UIImage respondsToSelector:iconSel]) {
         NSMethodSignature *sig = [UIImage methodSignatureForSelector:iconSel];
@@ -165,14 +187,12 @@
         [inv getReturnValue:&appIcon];
         cell.imageView.image = appIcon;
     }
-    
     return cell;
 }
 
 - (void)tableView:(UITableView *)tableView willDisplayCell:(UITableViewCell *)cell forRowAtIndexPath:(NSIndexPath *)indexPath {
-    CGFloat radius = 25.0;
+    CGFloat radius = 22.0;
     CACornerMask mask = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
-
     cell.layer.borderWidth = 0.0;
     cell.layer.borderColor = [UIColor clearColor].CGColor;
     cell.layer.cornerRadius = radius;
@@ -187,20 +207,13 @@
             bg.strokeWidth = 0.0;
             cell.backgroundConfiguration = bg;
         }
-    } else {
-        if (cell.backgroundView) {
-            cell.backgroundView.layer.cornerRadius = radius;
-            cell.backgroundView.layer.maskedCorners = mask;
-            cell.backgroundView.layer.masksToBounds = YES;
-            cell.backgroundView.layer.borderWidth = 0.0;
-        }
     }
     if (@available(iOS 13.0, *)) cell.layer.cornerCurve = kCACornerCurveContinuous;
 }
 
-- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath { return 65.0; }
-- (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section { return 5.0; }
-- (CGFloat)tableView:(UITableView *)tableView heightForFooterInSection:(NSInteger)section { return 5.0; }
+- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath { return 70.0; }
+- (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section { return 4.0; }
+- (CGFloat)tableView:(UITableView *)tableView heightForFooterInSection:(NSInteger)section { return 4.0; }
 - (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section { return [UIView new]; }
 - (UIView *)tableView:(UITableView *)tableView viewForFooterInSection:(NSInteger)section { return [UIView new]; }
 
@@ -217,7 +230,7 @@
 #pragma clang diagnostic pop
     
     UIAlertController *loading = [UIAlertController alertControllerWithTitle:HEX_DEC("E8AFB7E7A88DE58099") // "请稍候"
-                                                                     message:HEX_DEC("E6ADA3E59CA8E8AFB7E6B182E69C8DE58AA1E599A8E88EB7E58F96E78988E69CACE58897E8A1A82E2E2E") // "正在请求..."
+                                                                     message:HEX_DEC("E6ADA3E59CA8E8AFB7E6B182E69C8DE58AA1E599A8E88EB7E58F96E78988E69CACE58897E8A1A82E2E2E") // "正在请求服务器获取版本列表..."
                                                               preferredStyle:UIAlertControllerStyleAlert];
     [self presentViewController:loading animated:YES completion:nil];
     

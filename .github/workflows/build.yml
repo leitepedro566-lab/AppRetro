@@ -2,6 +2,7 @@ name: Build AppRetro
 
 # 触发条件：推送到 main 分支、发 PR 或手动触发
 on:
+  
   workflow_dispatch:
 
 jobs:
@@ -29,13 +30,15 @@ jobs:
           git clone --recursive https://github.com/theos/theos.git $THEOS
           
           echo "Cloning iOS SDKs..."
+          # 【修复核心】：先强制删除自带的 sdks 占位文件夹，再进行 clone
+          rm -rf $THEOS/sdks
           git clone https://github.com/theos/sdks.git $THEOS/sdks
 
       # 4. 编译并打包出 IPA
       - name: Build Package
         run: |
           # FINALPACKAGE=1 表示 Release 模式，去掉调试信息
-          # FORMAT=ipa 告诉 Theos 直接输出 .ipa 而不是 .deb，方便巨魔安装
+          # FORMAT=ipa 告诉 Theos 直接输出 .ipa
           make package FINALPACKAGE=1 FORMAT=ipa
 
       # 5. 将生成的 IPA 文件上传到 GitHub 供下载

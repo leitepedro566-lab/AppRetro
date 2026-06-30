@@ -10,16 +10,23 @@
 #define ARRootViewController    OO000OO0
 #define ARVersionViewController O0O0O00O
 
-// 2. 自定义属性与方法极致致盲
-#define arAllApps               I1l1I1ll
-#define arFilteredApps          ll1I1l1I
-#define arSearchController      l1I1I1ll
-#define loadInstalledApps       Ill111lI
-#define arOpenTGChannel         lI1l111l
-#define sharedManager           l111lI1I
+// 2. 核心属性与方法名致盲 (从符号表中彻底抹除特征)
+#define bundleID                m_O0O0l1
+#define appName                 m_l1l1O0
+#define trackID                 m_1l1lO0
+#define versions                m_0O0Ol1
+#define arAllApps               m_I1l1I1
+#define arFilteredApps          m_ll1I1l
+#define arSearchController      m_l1I1I1
+#define loadInstalledApps       m_Ill111
+#define arOpenTGChannel         m_lI1l11
+#define fetchTrackIDForBundleID m_lIl1I0
+#define fetchVersionsForTrackID m_l11I1l
+#define installAppWithTrackID   m_l1l11l
+#define sharedManager           m_l111lI
 
-// 3. 终极内存解密：Hex 转 String (替代所有明文，逆向工具彻底瞎眼)
-static inline NSString * l1I1l_dec(const char *hex) {
+// 3. 终极内联解密器：强制内联消灭函数符号，彻底阻断交叉引用分析
+static __attribute__((always_inline)) inline NSString * _O0l1O0l1_(const char *hex) {
     int len = (int)strlen(hex);
     char *str = (char *)malloc(len / 2 + 1);
     for(int i = 0; i < len; i += 2) {
@@ -32,7 +39,6 @@ static inline NSString * l1I1l_dec(const char *hex) {
     return res;
 }
 
-// 宏包装器
-#define OBF(hex) l1I1l_dec(hex)
+#define OBF(x) _O0l1O0l1_(x)
 
 #endif /* Obfuscation_h */

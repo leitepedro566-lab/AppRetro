@@ -1,10 +1,9 @@
-# 1. 指定架构 (arm64 兼容巨魔)
-ARCHS := arm64 arm64e
+# 仅保留 arm64，完美规避 arm64e 在 iOS 14 上的 dyld readClass 闪退问题
+ARCHS = arm64
+DEBUG = 0
+FINALPACKAGE = 1
 
-# 2. 【核心修复】：明确使用 iOS 15.6 SDK 编译，部署目标 iOS 14.0。
-# 这样即便在 macos-latest (带新版编译器) 下，Theos 也会调用兼容的参数链。
 TARGET := iphone:clang:15.6:14.0
-
 INSTALL_TARGET_PROCESSES = AppRetro
 
 include $(THEOS)/makefiles/common.mk
@@ -13,16 +12,21 @@ APPLICATION_NAME = AppRetro
 
 AppRetro_FILES = main.m ARAppDelegate.m ARRootViewController.m ARVersionViewController.m ARDowngradeManager.m
 AppRetro_FRAMEWORKS = UIKit Foundation CoreGraphics
-
-# 3. 继续使用动态加载不需要静态链接这几个库，但基础配置和 TrollCM 保持同频
 AppRetro_PRIVATE_FRAMEWORKS = MobileCoreServices
 
-AppRetro_CFLAGS = -fobjc-arc
+# 🎯 强力混淆与脱壳配置：
+# -fvisibility=hidden: 隐藏所有方法与类符号
+# -Wl,-S: 删除调试段
+# -Wl,-x: 删除局部符号段
+# -Wl,-dead_strip: 删除未使用的代码段
+# -Wl,-no_fixup_chains: 解决 iOS14 dyld 加载崩溃
+AppRetro_CFLAGS = -fobjc-arc -fvisibility=hidden
+AppRetro_LDFLAGS = -Wl,-S -Wl,-x -Wl,-dead_strip -Wl,-no_fixup_chains
+
 AppRetro_CODESIGN_FLAGS = -S$(APPLICATION_NAME).entitlements
 
 include $(THEOS_MAKE_PATH)/application.mk
 
-# 4. 【额外加成】：利用 Theos 钩子自动转 ipa (参考 TrollCM 优雅的做法)
 after-package::
 	@echo "Creating TrollStore .ipa..."
 	@mkdir -p packages $(THEOS_STAGING_DIR)/Payload

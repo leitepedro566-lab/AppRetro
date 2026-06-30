@@ -1,7 +1,7 @@
 name: Build AppRetro
 
 on:
-  
+ 
   workflow_dispatch:
 
 jobs:
@@ -26,26 +26,24 @@ jobs:
           git clone --recursive https://github.com/theos/theos.git $THEOS
           
           echo "Cloning iOS SDKs..."
+          # 【核心修复】：强行删除 Theos 自带的空 sdks 文件夹，为克隆腾出位置
+          rm -rf $THEOS/sdks
           git clone https://github.com/theos/sdks.git $THEOS/sdks
 
       - name: Build and Package
         run: |
-          # 1. 编译并生成 Theos 的 Staging 目录 (会在根目录生成 '_' 文件夹)
+          # 编译并生成 .app
           make package FINALPACKAGE=1
           
-          # 2. 手动构建 IPA (完美绕过 Theos FORMAT=ipa 的 Bug)
+          # 手动构建 IPA
           echo "手动打包 IPA..."
           mkdir -p Payload
-          
-          # 复制已签名并处理好的 .app 到 Payload 目录
           cp -r _/Applications/AppRetro.app Payload/
-          
-          # 压缩为标准的 IPA 文件
           zip -r9 AppRetro.ipa Payload
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: AppRetro-Release
-          path: AppRetro.ipa # 指向刚才手动生成的 IPA
+          path: AppRetro.ipa
           if-no-files-found: error

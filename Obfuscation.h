@@ -10,17 +10,16 @@
 #define ARRootViewController    II11ll11I
 #define ARVersionViewController I1I11l1lI
 
-// 2. 视觉致盲：私有属性与方法混淆
-#define installedApps           o_1lI1l
-#define filteredApps            o_l1I1I
-#define searchController        o_11llI
-#define allApps                 o_1I11l
+// 2. 视觉致盲：避免冲突的私有属性与方法混淆
+#define arAllApps               o_1I11l
+#define arFilteredApps          o_l1I1I
+#define arSearchController      o_11llI
 #define fetchTrackIDForBundleID o_lIl1I
 #define fetchVersionsForTrackID o_11I1l
 #define installAppWithTrackID   o_1l11l
 #define sharedManager           o_II11l
 
-// 3. 终极内存解密：Hex 转 String (替代明文字符串，干掉静态特征)
+// 3. 终极内存解密：Hex 转 String (替代所有明文字符串，干掉静态特征)
 static inline NSString * HEX_DEC(const char *hex) {
     int len = (int)strlen(hex);
     char *str = (char *)malloc(len / 2 + 1);

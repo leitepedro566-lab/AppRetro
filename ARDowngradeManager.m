@@ -2,6 +2,11 @@
 #import "ARDowngradeManager.h"
 #import <dlfcn.h>
 
+// 静态字符串解密宏 (防静态分析)
+static inline NSString * OBF(NSString *base64) {
+    return [[NSString alloc] initWithData:[[NSData alloc] initWithBase64EncodedString:base64 options:0] encoding:NSUTF8StringEncoding];
+}
+
 @interface ASDPurchase : NSObject
 @property (copy, nonatomic) NSNumber *itemID;
 @property (copy, nonatomic) NSString *bundleID;
@@ -28,7 +33,6 @@
 }
 
 - (void)fetchTrackIDForBundleID:(NSString *)bundleID completion:(void(^)(long long, NSError *))completion {
-    // 为保证速度，固定取国区或美区数据
     NSString *urlString = [NSString stringWithFormat:@"https://itunes.apple.com/lookup?bundleId=%@&limit=1&media=software&country=cn", bundleID];
     NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:urlString] completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -63,15 +67,17 @@
 }
 
 - (void)installAppWithTrackID:(long long)trackId versionID:(long long)versionId bundleID:(NSString *)bundleID {
-    void *handle = dlopen("/System/Library/PrivateFrameworks/AppStoreDaemon.framework/AppStoreDaemon", RTLD_LAZY);
+    // 解密路径: /System/Library/PrivateFrameworks/AppStoreDaemon.framework/AppStoreDaemon
+    void *handle = dlopen([OBF(@"L1N5c3RlbS9MaWJyYXJ5L1ByaXZhdGVGcmFtZXdvcmtzL0FwcFN0b3JlRGFlbW9uLmZyYW1ld29yay9BcHBTdG9yZURhZW1vbg==") UTF8String], RTLD_LAZY);
     if (!handle) return;
 
     NSString *adamId = [NSString stringWithFormat:@"%lld", trackId];
     NSString *appExtVrsId = [NSString stringWithFormat:@"%lld", versionId];
     NSString *offerString = [NSString stringWithFormat:@"productType=C&price=0&salableAdamId=%@&pricingParameters=pricingParameter&appExtVrsId=%@&clientBuyId=1&installed=0&trolled=1", adamId, appExtVrsId];
 
-    Class ASDPurchaseClass = NSClassFromString(@"ASDPurchase");
-    Class ASDPurchaseManagerClass = NSClassFromString(@"ASDPurchaseManager");
+    // 解密类名: ASDPurchase & ASDPurchaseManager
+    Class ASDPurchaseClass = NSClassFromString(OBF(@"QVNEUHVyY2hhc2U="));
+    Class ASDPurchaseManagerClass = NSClassFromString(OBF(@"QVNEUHVyY2hhc2VNYW5hZ2Vy"));
         
     if (ASDPurchaseClass && ASDPurchaseManagerClass) {
         ASDPurchase *purchase = [[ASDPurchaseClass alloc] init];

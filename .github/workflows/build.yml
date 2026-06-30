@@ -1,6 +1,5 @@
 name: Build AppRetro
 
-# 触发条件：推送到 main 分支、发 PR 或手动触发
 on:
   
   workflow_dispatch:
@@ -14,37 +13,39 @@ jobs:
       THEOS: ${{ github.workspace }}/theos
       
     steps:
-      # 1. 检出你的代码
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 2. 安装编译依赖环境 (ldid 用于签名，dpkg 用于打包)
       - name: Install Dependencies
         run: |
           brew install ldid dpkg make
 
-      # 3. 配置 Theos 与 iOS SDK 环境
       - name: Setup Theos & SDKs
         run: |
           echo "Cloning Theos..."
           git clone --recursive https://github.com/theos/theos.git $THEOS
           
           echo "Cloning iOS SDKs..."
-          # 【修复核心】：先强制删除自带的 sdks 占位文件夹，再进行 clone
-          rm -rf $THEOS/sdks
           git clone https://github.com/theos/sdks.git $THEOS/sdks
 
-      # 4. 编译并打包出 IPA
-      - name: Build Package
+      - name: Build and Package
         run: |
-          # FINALPACKAGE=1 表示 Release 模式，去掉调试信息
-          # FORMAT=ipa 告诉 Theos 直接输出 .ipa
-          make package FINALPACKAGE=1 FORMAT=ipa
+          # 1. 编译并生成 Theos 的 Staging 目录 (会在根目录生成 '_' 文件夹)
+          make package FINALPACKAGE=1
+          
+          # 2. 手动构建 IPA (完美绕过 Theos FORMAT=ipa 的 Bug)
+          echo "手动打包 IPA..."
+          mkdir -p Payload
+          
+          # 复制已签名并处理好的 .app 到 Payload 目录
+          cp -r _/Applications/AppRetro.app Payload/
+          
+          # 压缩为标准的 IPA 文件
+          zip -r9 AppRetro.ipa Payload
 
-      # 5. 将生成的 IPA 文件上传到 GitHub 供下载
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: AppRetro-Release
-          path: packages/*.ipa
+          path: AppRetro.ipa # 指向刚才手动生成的 IPA
           if-no-files-found: error

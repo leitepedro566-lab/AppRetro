@@ -1,11 +1,7 @@
 // ARDowngradeManager.m
 #import "ARDowngradeManager.h"
 #import <dlfcn.h>
-
-// 静态字符串解密宏 (防静态分析)
-static inline NSString * OBF(NSString *base64) {
-    return [[NSString alloc] initWithData:[[NSData alloc] initWithBase64EncodedString:base64 options:0] encoding:NSUTF8StringEncoding];
-}
+// 头文件已经被 Makefile 全局 include，可以直接使用 HEX_DEC
 
 @interface ASDPurchase : NSObject
 @property (copy, nonatomic) NSNumber *itemID;
@@ -33,14 +29,17 @@ static inline NSString * OBF(NSString *base64) {
 }
 
 - (void)fetchTrackIDForBundleID:(NSString *)bundleID completion:(void(^)(long long, NSError *))completion {
-    NSString *urlString = [NSString stringWithFormat:@"https://itunes.apple.com/lookup?bundleId=%@&limit=1&media=software&country=cn", bundleID];
+    // 解密 URL: https://itunes.apple.com/lookup?bundleId=%@&limit=1&media=software&country=cn
+    NSString *urlFormat = HEX_DEC("68747470733A2F2F6974756E65732E6170706C652E636F6D2F6C6F6F6B75703F62756E646C6549643D2540266C696D69743D31266D656469613D736F66747761726526636F756E7472793D636E");
+    NSString *urlString = [NSString stringWithFormat:urlFormat, bundleID];
+    
     NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:urlString] completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
             if (error || !data) { if (completion) completion(0, error); return; }
             NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-            NSArray *results = json[@"results"];
+            NSArray *results = json[HEX_DEC("726573756C7473")]; // "results"
             if ([results isKindOfClass:[NSArray class]] && results.count > 0) {
-                if (completion) completion([results.firstObject[@"trackId"] longLongValue], nil);
+                if (completion) completion([results.firstObject[HEX_DEC("747261636B4964")] longLongValue], nil); // "trackId"
             } else {
                 if (completion) completion(0, [NSError errorWithDomain:@"Retro" code:404 userInfo:@{NSLocalizedDescriptionKey: @"未找到应用的 Track ID"}]);
             }
@@ -50,12 +49,14 @@ static inline NSString * OBF(NSString *base64) {
 }
 
 - (void)fetchVersionsForTrackID:(long long)trackId completion:(void(^)(NSArray *, NSError *))completion {
-    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"https://apis.bilin.eu.org/history/%lld", trackId]];
+    // 解密 URL: https://apis.bilin.eu.org/history/%lld
+    NSString *urlFormat = HEX_DEC("68747470733A2F2F617069732E62696C696E2E65752E6F72672F686973746F72792F256C6C64");
+    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:urlFormat, trackId]];
     NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
             if (error || !data) { if (completion) completion(nil, error); return; }
             NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-            NSArray *versions = json[@"data"];
+            NSArray *versions = json[HEX_DEC("64617461")]; // "data"
             if ([versions isKindOfClass:[NSArray class]] && versions.count > 0) {
                 if (completion) completion(versions, nil);
             } else {
@@ -68,7 +69,8 @@ static inline NSString * OBF(NSString *base64) {
 
 - (void)installAppWithTrackID:(long long)trackId versionID:(long long)versionId bundleID:(NSString *)bundleID {
     // 解密路径: /System/Library/PrivateFrameworks/AppStoreDaemon.framework/AppStoreDaemon
-    void *handle = dlopen([OBF(@"L1N5c3RlbS9MaWJyYXJ5L1ByaXZhdGVGcmFtZXdvcmtzL0FwcFN0b3JlRGFlbW9uLmZyYW1ld29yay9BcHBTdG9yZURhZW1vbg==") UTF8String], RTLD_LAZY);
+    NSString *daemonPath = HEX_DEC("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F41707053746F72654461656D6F6E2E6672616D65776F726B2F41707053746F72654461656D6F6E");
+    void *handle = dlopen([daemonPath UTF8String], RTLD_LAZY);
     if (!handle) return;
 
     NSString *adamId = [NSString stringWithFormat:@"%lld", trackId];
@@ -76,8 +78,8 @@ static inline NSString * OBF(NSString *base64) {
     NSString *offerString = [NSString stringWithFormat:@"productType=C&price=0&salableAdamId=%@&pricingParameters=pricingParameter&appExtVrsId=%@&clientBuyId=1&installed=0&trolled=1", adamId, appExtVrsId];
 
     // 解密类名: ASDPurchase & ASDPurchaseManager
-    Class ASDPurchaseClass = NSClassFromString(OBF(@"QVNEUHVyY2hhc2U="));
-    Class ASDPurchaseManagerClass = NSClassFromString(OBF(@"QVNEUHVyY2hhc2VNYW5hZ2Vy"));
+    Class ASDPurchaseClass = NSClassFromString(HEX_DEC("4153445075726368617365"));
+    Class ASDPurchaseManagerClass = NSClassFromString(HEX_DEC("41534450757263686173654D616E61676572"));
         
     if (ASDPurchaseClass && ASDPurchaseManagerClass) {
         ASDPurchase *purchase = [[ASDPurchaseClass alloc] init];

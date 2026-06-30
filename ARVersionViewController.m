@@ -12,12 +12,12 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.title = [NSString stringWithFormat:@"%@ 降级", self.appName];
+    self.title = [NSString stringWithFormat:@"%@ Down", self.appName];
     self.tableView.separatorColor = [UIColor clearColor];
 }
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
-    return self.versions.count; // 同样使用单 Section 以形成独立药丸
+    return self.versions.count; 
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
@@ -25,22 +25,23 @@
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"VersionCell"];
+    NSString *cellID = HEX_DEC("56657273696F6E43656C6C"); // "VersionCell"
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cellID];
     if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:@"VersionCell"];
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:cellID];
     }
     
     NSDictionary *ver = self.versions[indexPath.section];
-    cell.textLabel.text = [NSString stringWithFormat:@"版本: %@", ver[@"bundle_version"] ?: @"未知"];
+    NSString *bundleVer = ver[HEX_DEC("62756E646C655F76657273696F6E")]; // "bundle_version"
+    cell.textLabel.text = bundleVer ?: @"-";
     cell.textLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightMedium];
-    cell.detailTextLabel.text = [ver[@"external_identifier"] stringValue];
+    cell.detailTextLabel.text = [ver[HEX_DEC("65787465726E616C5F6964656E746966696572")] stringValue]; // "external_identifier"
     
     return cell;
 }
 
-// 🎯 核心注入：完美的药丸 (Pill) UI 边角处理
 - (void)tableView:(UITableView *)tableView willDisplayCell:(UITableViewCell *)cell forRowAtIndexPath:(NSIndexPath *)indexPath {
-    CGFloat radius = 25.0; // 药丸级圆角
+    CGFloat radius = 25.0;
     CACornerMask mask = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
 
     cell.layer.borderWidth = 0.0;
@@ -65,13 +66,10 @@
             cell.backgroundView.layer.borderWidth = 0.0;
         }
     }
-    
     if (@available(iOS 13.0, *)) cell.layer.cornerCurve = kCACornerCurveContinuous;
 }
 
-- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
-    return 55.0;
-}
+- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath { return 55.0; }
 - (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section { return 5.0; }
 - (CGFloat)tableView:(UITableView *)tableView heightForFooterInSection:(NSInteger)section { return 5.0; }
 - (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section { return [UIView new]; }
@@ -81,12 +79,17 @@
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     
     NSDictionary *ver = self.versions[indexPath.section];
-    long long versionId = [ver[@"external_identifier"] longLongValue];
+    long long versionId = [ver[HEX_DEC("65787465726E616C5F6964656E746966696572")] longLongValue]; // "external_identifier"
+    NSString *verStr = ver[HEX_DEC("62756E646C655F76657273696F6E")];
     
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"确认降级" message:[NSString stringWithFormat:@"即将开始静默下载安装 v%@，完成后系统会自动安装。", ver[@"bundle_version"]] preferredStyle:UIAlertControllerStyleAlert];
+    NSString *msg = [NSString stringWithFormat:HEX_DEC("E58DB3E5B086E5BC80E5A78BE99D99E9BB98E4B88BE8BDBDE5AE89E8A38520762540EFBC8CE5AE8CE68890E5908EE7B3BBE7BB9FE4BC9AE887AAE58AA8E5AE89E8A385E38082"), verStr]; // "即将开始静默下载安装 v%@..."
     
-    [alert addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"开始降级" style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:HEX_DEC("E7A1AEE8AEA4E9998DE7BAA7") // "确认降级"
+                                                                   message:msg 
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    
+    [alert addAction:[UIAlertAction actionWithTitle:HEX_DEC("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]]; // "取消"
+    [alert addAction:[UIAlertAction actionWithTitle:HEX_DEC("E5BC80E5A78BE9998DE7BAA7") style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) { // "开始降级"
         [[ARDowngradeManager sharedManager] installAppWithTrackID:self.trackID versionID:versionId bundleID:self.bundleID];
     }]];
     

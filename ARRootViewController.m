@@ -3,22 +3,15 @@
 #import "ARVersionViewController.h"
 #import "ARDowngradeManager.h"
 
-@interface LSApplicationWorkspace : NSObject
-+ (id)defaultWorkspace;
-- (NSArray *)allInstalledApplications;
-@end
+// 静态字符串解密宏
+static inline NSString * OBF(NSString *base64) {
+    return [[NSString alloc] initWithData:[[NSData alloc] initWithBase64EncodedString:base64 options:0] encoding:NSUTF8StringEncoding];
+}
 
-@interface LSApplicationProxy : NSObject
-@property (nonatomic, readonly) NSString *bundleIdentifier;
-@property (nonatomic, readonly) NSString *localizedName;
-@end
-
-@interface UIImage (Private)
-+ (UIImage *)_applicationIconImageForBundleIdentifier:(NSString *)bundleIdentifier format:(int)format scale:(CGFloat)scale;
-@end
-
-@interface ARRootViewController ()
-@property (nonatomic, strong) NSArray *installedApps;
+@interface ARRootViewController () <UISearchResultsUpdating>
+@property (nonatomic, strong) NSArray *allApps;
+@property (nonatomic, strong) NSArray *filteredApps;
+@property (nonatomic, strong) UISearchController *searchController;
 @end
 
 @implementation ARRootViewController
@@ -32,21 +25,46 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.title = @"AppRetro";
-    self.tableView.separatorColor = [UIColor clearColor]; // 药丸 UI 通常去掉分割线更显高级
+    self.tableView.separatorColor = [UIColor clearColor];
     self.tableView.showsVerticalScrollIndicator = NO;
+    
+    // 初始化搜索框
+    self.searchController = [[UISearchController alloc] initWithSearchResultsController:nil];
+    self.searchController.searchResultsUpdater = self;
+    self.searchController.obscuresBackgroundDuringPresentation = NO;
+    self.searchController.searchBar.placeholder = @"搜索应用";
+    self.navigationItem.searchController = self.searchController;
+    self.definesPresentationContext = YES;
+    self.navigationItem.hidesSearchBarWhenScrolling = NO;
+
     [self loadInstalledApps];
 }
 
 - (void)loadInstalledApps {
-    id workspace = [NSClassFromString(@"LSApplicationWorkspace") performSelector:@selector(defaultWorkspace)];
-    NSArray *allApps = [workspace performSelector:@selector(allInstalledApplications)];
+    // 解密类与方法: LSApplicationWorkspace / defaultWorkspace / allInstalledApplications
+    id workspace = [NSClassFromString(OBF(@"TFNBcHBsaWNhdGlvbldvcmtzcGFjZQ==")) performSelector:NSSelectorFromString(OBF(@"ZGVmYXVsdFdvcmtzcGFjZQ=="))];
+    NSArray *apps = [workspace performSelector:NSSelectorFromString(OBF(@"YWxsSW5zdGFsbGVkQXBwbGljYXRpb25z"))];
     NSMutableArray *validApps = [NSMutableArray array];
     
-    for (id proxy in allApps) {
+    for (id proxy in apps) {
         NSString *bundleID = [proxy performSelector:@selector(bundleIdentifier)];
-        if (bundleID && ![bundleID hasPrefix:@"com.apple."]) {
-            [validApps addObject:proxy];
+        if (!bundleID) continue;
+        
+        // 过滤 com.apple.* (解密字符串: com.apple.)
+        if ([bundleID hasPrefix:OBF(@"Y29tLmFwcGxlLg==")]) {
+            continue;
         }
+        
+        // 过滤巨魔应用 (解密方法: bundleURL, 解密字符: _TrollStore)
+        NSURL *bundleURL = [proxy respondsToSelector:NSSelectorFromString(OBF(@"YnVuZGxlVVJM"))] ? [proxy performSelector:NSSelectorFromString(OBF(@"YnVuZGxlVVJM"))] : nil;
+        if (bundleURL) {
+            NSString *trollStorePath = [bundleURL.path stringByAppendingPathComponent:OBF(@"X1Ryb2xsU3RvcmU=")];
+            if ([[NSFileManager defaultManager] fileExistsAtPath:trollStorePath]) {
+                continue;
+            }
+        }
+        
+        [validApps addObject:proxy];
     }
     
     [validApps sortUsingComparator:^NSComparisonResult(id a, id b) {
@@ -55,12 +73,36 @@
         return [nameA localizedCaseInsensitiveCompare:nameB];
     }];
     
-    self.installedApps = validApps;
+    self.allApps = validApps;
+    self.filteredApps = validApps;
     [self.tableView reloadData];
 }
 
+#pragma mark - Search Filtering
+
+- (void)updateSearchResultsForSearchController:(UISearchController *)searchController {
+    NSString *searchText = searchController.searchBar.text.lowercaseString;
+    if (searchText.length == 0) {
+        self.filteredApps = self.allApps;
+    } else {
+        NSMutableArray *results = [NSMutableArray array];
+        for (id proxy in self.allApps) {
+            NSString *bundleID = [proxy performSelector:@selector(bundleIdentifier)];
+            NSString *name = [proxy respondsToSelector:@selector(localizedName)] ? [proxy performSelector:@selector(localizedName)] : bundleID;
+            
+            if ([name.lowercaseString containsString:searchText] || [bundleID.lowercaseString containsString:searchText]) {
+                [results addObject:proxy];
+            }
+        }
+        self.filteredApps = results;
+    }
+    [self.tableView reloadData];
+}
+
+#pragma mark - TableView Delegate & DataSource
+
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
-    return self.installedApps.count; // 每个 App 一个 Section，以形成独立的药丸
+    return self.filteredApps.count;
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
@@ -76,26 +118,33 @@
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     }
     
-    id proxy = self.installedApps[indexPath.section];
+    id proxy = self.filteredApps[indexPath.section];
     NSString *bundleID = [proxy performSelector:@selector(bundleIdentifier)];
     NSString *name = [proxy respondsToSelector:@selector(localizedName)] ? [proxy performSelector:@selector(localizedName)] : bundleID;
     
+    // 获取当前应用版本号 (解密方法: shortVersionString)
+    NSString *version = @"未知";
+    SEL versionSel = NSSelectorFromString(OBF(@"c2hvcnRWZXJzaW9uU3RyaW5n"));
+    if ([proxy respondsToSelector:versionSel]) {
+        version = [proxy performSelector:versionSel];
+    }
+    
     cell.textLabel.text = name;
-    cell.detailTextLabel.text = bundleID;
+    // 将版本号优雅地显示在 bundleID 旁边
+    cell.detailTextLabel.text = [NSString stringWithFormat:@"%@  ·  v%@", bundleID, version];
     
     if ([UIImage respondsToSelector:@selector(_applicationIconImageForBundleIdentifier:format:scale:)]) {
-        cell.imageView.image = [UIImage _applicationIconImageForBundleIdentifier:bundleID format:1 scale:[UIScreen mainScreen].scale];
+        cell.imageView.image = [UIImage performSelector:@selector(_applicationIconImageForBundleIdentifier:format:scale:) withObject:bundleID withObject:@(1) withObject:@([UIScreen mainScreen].scale)];
     }
     return cell;
 }
 
-// 🎯 核心注入：完美的药丸 (Pill) UI 边角处理
 - (void)tableView:(UITableView *)tableView willDisplayCell:(UITableViewCell *)cell forRowAtIndexPath:(NSIndexPath *)indexPath {
     NSInteger numberOfRows = [tableView numberOfRowsInSection:indexPath.section];
     BOOL isFirst = (indexPath.row == 0);
     BOOL isLast = (indexPath.row == numberOfRows - 1);
 
-    CGFloat radius = 25.0; // 药丸级圆角
+    CGFloat radius = 25.0;
     CACornerMask mask = 0;
 
     if (isFirst && isLast) {
@@ -136,21 +185,16 @@
 }
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
-    return 65.0; // 稍微增加高度让药丸显得更饱满
+    return 65.0;
 }
-
-- (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section {
-    return 5.0; // 缩小药丸之间的间距
-}
-- (CGFloat)tableView:(UITableView *)tableView heightForFooterInSection:(NSInteger)section {
-    return 5.0;
-}
+- (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section { return 5.0; }
+- (CGFloat)tableView:(UITableView *)tableView heightForFooterInSection:(NSInteger)section { return 5.0; }
 - (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section { return [UIView new]; }
 - (UIView *)tableView:(UITableView *)tableView viewForFooterInSection:(NSInteger)section { return [UIView new]; }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    id proxy = self.installedApps[indexPath.section];
+    id proxy = self.filteredApps[indexPath.section];
     NSString *bundleID = [proxy performSelector:@selector(bundleIdentifier)];
     NSString *name = [proxy respondsToSelector:@selector(localizedName)] ? [proxy performSelector:@selector(localizedName)] : bundleID;
     

@@ -4,22 +4,24 @@
 
 #import <Foundation/Foundation.h>
 
-// 1. 视觉致盲：类名混淆
-#define ARAppDelegate           lIII1l1lI
-#define ARDowngradeManager      l1I1ll1lI
-#define ARRootViewController    II11ll11I
-#define ARVersionViewController I1I11l1lI
+// 1. 类名极致致盲
+#define ARAppDelegate           l111lIlIl
+#define ARDowngradeManager      lIllIIl1l
+#define ARRootViewController    ll1I1lIll
+#define ARVersionViewController lIIl1ll1l
 
-// 2. 视觉致盲：避免冲突的私有属性与方法混淆
-#define arAllApps               o_1I11l
-#define arFilteredApps          o_l1I1I
-#define arSearchController      o_11llI
-#define fetchTrackIDForBundleID o_lIl1I
-#define fetchVersionsForTrackID o_11I1l
-#define installAppWithTrackID   o_1l11l
-#define sharedManager           o_II11l
+// 2. 自定义关键属性与方法混淆（避开系统原有关键字）
+#define arAllApps               m_l1I11l
+#define arFilteredApps          m_l1l1I1
+#define arSearchController      m_l11llI
+#define fetchTrackIDForBundleID m_lIl1I
+#define fetchVersionsForTrackID m_l11I1l
+#define installAppWithTrackID   m_l1l11l
+#define sharedManager           m_lII11l
+#define arOpenTGChannel         m_l1ll1l
+#define loadInstalledApps       m_l111lI
 
-// 3. 终极内存解密：Hex 转 String (替代所有明文字符串，干掉静态特征)
+// 3. 终极内存解密：Hex 转 String (使静态分析中无任何明文字符串)
 static inline NSString * HEX_DEC(const char *hex) {
     int len = (int)strlen(hex);
     char *str = (char *)malloc(len / 2 + 1);

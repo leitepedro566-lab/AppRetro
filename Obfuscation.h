@@ -4,25 +4,22 @@
 
 #import <Foundation/Foundation.h>
 
-// 1. 类名极致致盲
-#define ARAppDelegate           l111lIlIl
-#define ARDowngradeManager      lIllIIl1l
-#define ARRootViewController    ll1I1lIll
-#define ARVersionViewController lIIl1ll1l
+// 1. 类名极致视觉致盲
+#define ARAppDelegate           O0O00O0O
+#define ARDowngradeManager      O00OO00O
+#define ARRootViewController    OO000OO0
+#define ARVersionViewController O0O0O00O
 
-// 2. 自定义关键属性与方法混淆（避开系统原有关键字）
-#define arAllApps               m_l1I11l
-#define arFilteredApps          m_l1l1I1
-#define arSearchController      m_l11llI
-#define fetchTrackIDForBundleID m_lIl1I
-#define fetchVersionsForTrackID m_l11I1l
-#define installAppWithTrackID   m_l1l11l
-#define sharedManager           m_lII11l
-#define arOpenTGChannel         m_l1ll1l
-#define loadInstalledApps       m_l111lI
+// 2. 自定义属性与方法极致致盲
+#define arAllApps               I1l1I1ll
+#define arFilteredApps          ll1I1l1I
+#define arSearchController      l1I1I1ll
+#define loadInstalledApps       Ill111lI
+#define arOpenTGChannel         lI1l111l
+#define sharedManager           l111lI1I
 
-// 3. 终极内存解密：Hex 转 String (使静态分析中无任何明文字符串)
-static inline NSString * HEX_DEC(const char *hex) {
+// 3. 终极内存解密：Hex 转 String (替代所有明文，逆向工具彻底瞎眼)
+static inline NSString * l1I1l_dec(const char *hex) {
     int len = (int)strlen(hex);
     char *str = (char *)malloc(len / 2 + 1);
     for(int i = 0; i < len; i += 2) {
@@ -34,5 +31,8 @@ static inline NSString * HEX_DEC(const char *hex) {
     free(str);
     return res;
 }
+
+// 宏包装器
+#define OBF(hex) l1I1l_dec(hex)
 
 #endif /* Obfuscation_h */

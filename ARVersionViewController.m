@@ -2,13 +2,6 @@
 #import "ARVersionViewController.h"
 #import "ARDowngradeManager.h"
 
-@interface ARVersionViewController ()
-@property (nonatomic, copy) NSString *bundleID;
-@property (nonatomic, copy) NSString *appName;
-@property (nonatomic, assign) long long trackID;
-@property (nonatomic, strong) NSArray *versions;
-@end
-
 @implementation ARVersionViewController
 
 - (instancetype)init {
@@ -19,7 +12,7 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.title = [NSString stringWithFormat:@"%@ Down", self.appName];
+    self.title = [NSString stringWithFormat:OBF("254020446F776E"), self.appName]; // "%@ Down"
     self.tableView.separatorColor = [UIColor clearColor];
 }
 
@@ -27,15 +20,15 @@
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section { return 1; }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    NSString *cellID = OBF("56657273696F6E43656C6C"); // "VersionCell"
+    NSString *cellID = OBF("56657273696F6E43656C6C"); 
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cellID];
     if (!cell) {
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:cellID];
     }
     
     NSDictionary *ver = self.versions[indexPath.section];
-    NSString *bundleVer = ver[OBF("62756E646C655F76657273696F6E")]; // "bundle_version"
-    cell.textLabel.text = bundleVer ?: @"-";
+    NSString *bundleVer = ver[OBF("62756E646C655F76657273696F6E")]; 
+    cell.textLabel.text = bundleVer ?: OBF("2D"); // "-"
     cell.textLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightMedium];
     cell.detailTextLabel.text = [ver[OBF("65787465726E616C5F6964656E746966696572")] stringValue]; 
     return cell;
@@ -70,7 +63,7 @@
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     
     NSDictionary *ver = self.versions[indexPath.section];
-    long long versionId = [ver[OBF("65787465726E616C5F6964656E746966696572")] longLongValue]; 
+    long long vId = [ver[OBF("65787465726E616C5F6964656E746966696572")] longLongValue]; 
     NSString *verStr = ver[OBF("62756E646C655F76657273696F6E")];
     
     // "即将开始静默下载安装 v%@..."
@@ -80,21 +73,20 @@
                                                                    message:msg 
                                                             preferredStyle:UIAlertControllerStyleAlert];
     
-    [alert addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]]; // "取消"
-    [alert addAction:[UIAlertAction actionWithTitle:OBF("E5BC80E5A78BE9998DE7BAA7") style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) { // "开始降级"
+    [alert addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:OBF("E5BC80E5A78BE9998DE7BAA7") style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) { 
         
-        // 1. 静默触发底层购买/更新逻辑
-        [[ARDowngradeManager sharedManager] installAppWithTrackID:self.trackID versionID:versionId bundleID:self.bundleID];
+        // 1. 静默购买/更新逻辑
+        [[ARDowngradeManager sharedManager] installAppWithTrackID:self.trackID versionID:vId bundleID:self.bundleID];
         
-        // 2. 🎯 核心防闪退修复：延时 0.5s 执行退台，避免阻断 UIAlertController 的 dismiss 动画导致转场断言崩溃！
+        // 2. 完美防闪退设计：延时退回桌面，避免打断 Alert dismiss 生命周期引发闪退
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-            // 已修复错别字：7368617265644170706C69636174696F6E 对应 sharedApplication
             id app = [NSClassFromString(OBF("55494170706C69636174696F6E")) performSelector:NSSelectorFromString(OBF("7368617265644170706C69636174696F6E"))]; 
-            SEL suspSel = NSSelectorFromString(OBF("73757370656E64")); // "suspend"
+            SEL suspSel = NSSelectorFromString(OBF("73757370656E64")); 
             if ([app respondsToSelector:suspSel]) {
-                [app performSelector:suspSel]; // 软件自动完美返回桌面
+                [app performSelector:suspSel]; // 无缝平滑挂起回桌面
             }
 #pragma clang diagnostic pop
         });

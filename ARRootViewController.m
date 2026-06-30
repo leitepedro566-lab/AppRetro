@@ -19,36 +19,36 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.title = HEX_DEC("417070526574726F"); // "AppRetro"
+    self.title = OBF("417070526574726F"); // "AppRetro"
     self.tableView.separatorColor = [UIColor clearColor];
     self.tableView.showsVerticalScrollIndicator = NO;
     
-    // 1. 初始化顶部搜索框
+    // 初始化搜索框
     self.arSearchController = [[UISearchController alloc] initWithSearchResultsController:nil];
     self.arSearchController.searchResultsUpdater = self;
     self.arSearchController.obscuresBackgroundDuringPresentation = NO;
-    self.arSearchController.searchBar.placeholder = HEX_DEC("E6909CE7B4A2E5BA94E794A8202853656172636829"); // "搜索应用 (Search)"
+    self.arSearchController.searchBar.placeholder = OBF("E6909CE7B4A2E5BA94E794A8202853656172636829"); // "搜索应用 (Search)"
     self.navigationItem.searchController = self.arSearchController;
     self.definesPresentationContext = YES;
     self.navigationItem.hidesSearchBarWhenScrolling = NO;
 
-    // 2. 右上角导航栏添加 TG频道 按钮
-    UIBarButtonItem *tgItem = [[UIBarButtonItem alloc] initWithTitle:HEX_DEC("5447E9A291E98193") style:UIBarButtonItemStylePlain target:self action:@selector(arOpenTGChannel)]; // "TG频道"
+    // 右上角跳转 TG
+    UIBarButtonItem *tgItem = [[UIBarButtonItem alloc] initWithTitle:OBF("5447E9A291E98193") style:UIBarButtonItemStylePlain target:self action:@selector(arOpenTGChannel)]; // "TG频道"
     self.navigationItem.rightBarButtonItem = tgItem;
 
     [self loadInstalledApps];
 }
 
 - (void)arOpenTGChannel {
-    NSURL *url = [NSURL URLWithString:HEX_DEC("68747470733A2F2F742E6D652F696F7364756D707A7A7A")]; // "https://t.me/iosdumpzzz"
+    NSURL *url = [NSURL URLWithString:OBF("68747470733A2F2F742E6D652F696F7364756D707A7A7A")]; // "https://t.me/iosdumpzzz"
     [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
 }
 
 - (void)loadInstalledApps {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-    id workspace = [NSClassFromString(HEX_DEC("4C534170706C69636174696F6E576F726B7370616365")) performSelector:NSSelectorFromString(HEX_DEC("64656661756C74576F726B7370616365"))];
-    NSArray *apps = [workspace performSelector:NSSelectorFromString(HEX_DEC("616C6C496E7374616C6C65644170706C69636174696F6E73"))];
+    id workspace = [NSClassFromString(OBF("4C534170706C69636174696F6E576F726B7370616365")) performSelector:NSSelectorFromString(OBF("64656661756C74576F726B7370616365"))];
+    NSArray *apps = [workspace performSelector:NSSelectorFromString(OBF("616C6C496E7374616C6C65644170706C69636174696F6E73"))];
 #pragma clang diagnostic pop
 
     NSMutableArray *validApps = [NSMutableArray array];
@@ -56,24 +56,24 @@
     for (id proxy in apps) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-        NSString *bundleID = [proxy performSelector:NSSelectorFromString(HEX_DEC("62756E646C654964656E746966696572"))]; // "bundleIdentifier"
+        NSString *bundleID = [proxy performSelector:NSSelectorFromString(OBF("62756E646C654964656E746966696572"))]; 
 #pragma clang diagnostic pop
         if (!bundleID) continue;
         
-        // 过滤系统 com.apple. 开头应用
-        if ([bundleID hasPrefix:HEX_DEC("636F6D2E6170706C652E")]) continue;
+        // 过滤系统 com.apple.
+        if ([bundleID hasPrefix:OBF("636F6D2E6170706C652E")]) continue;
         
-        // 🎯 核心路径修复：在 .app 的同级目录下查找排除 _TrollStore 标识文件
+        // 🎯 核心判断: _TrollStore 文件必须在 .app 的【同级平级】目录
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-        NSURL *bundleURL = [proxy respondsToSelector:NSSelectorFromString(HEX_DEC("62756E646C6555524C"))] ? [proxy performSelector:NSSelectorFromString(HEX_DEC("62756E646C6555524C"))] : nil;
+        NSURL *bundleURL = [proxy respondsToSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] ? [proxy performSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] : nil;
 #pragma clang diagnostic pop
         if (bundleURL) {
-            // 获取 .app 目录的上一级目录（同级目录）
+            // stringByDeletingLastPathComponent 获取的是 .app 的上一级目录（即容器目录，也就是 .app 的同级目录）
             NSString *appParentDir = [bundleURL.path stringByDeletingLastPathComponent];
-            NSString *trollStorePath = [appParentDir stringByAppendingPathComponent:HEX_DEC("5F54726F6C6C53746F7265")]; // "_TrollStore"
+            NSString *trollStorePath = [appParentDir stringByAppendingPathComponent:OBF("5F54726F6C6C53746F7265")]; // "_TrollStore"
             if ([[NSFileManager defaultManager] fileExistsAtPath:trollStorePath]) {
-                continue; // 成功排除同级目录含有 _TrollStore 的巨魔安装 App
+                continue; 
             }
         }
         [validApps addObject:proxy];
@@ -82,8 +82,8 @@
     [validApps sortUsingComparator:^NSComparisonResult(id a, id b) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-        SEL nameSel = NSSelectorFromString(HEX_DEC("6C6F63616C697A65644E616D65")); // "localizedName"
-        SEL bundleSel = NSSelectorFromString(HEX_DEC("62756E646C654964656E746966696572"));
+        SEL nameSel = NSSelectorFromString(OBF("6C6F63616C697A65644E616D65")); 
+        SEL bundleSel = NSSelectorFromString(OBF("62756E646C654964656E746966696572"));
         NSString *nameA = [a respondsToSelector:nameSel] ? [a performSelector:nameSel] : [a performSelector:bundleSel];
         NSString *nameB = [b respondsToSelector:nameSel] ? [b performSelector:nameSel] : [b performSelector:bundleSel];
 #pragma clang diagnostic pop
@@ -104,8 +104,8 @@
         for (id proxy in self.arAllApps) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-            SEL nameSel = NSSelectorFromString(HEX_DEC("6C6F63616C697A65644E616D65"));
-            SEL bundleSel = NSSelectorFromString(HEX_DEC("62756E646C654964656E746966696572"));
+            SEL nameSel = NSSelectorFromString(OBF("6C6F63616C697A65644E616D65"));
+            SEL bundleSel = NSSelectorFromString(OBF("62756E646C654964656E746966696572"));
             NSString *bundleID = [proxy performSelector:bundleSel];
             NSString *name = [proxy respondsToSelector:nameSel] ? [proxy performSelector:nameSel] : bundleID;
 #pragma clang diagnostic pop
@@ -118,21 +118,14 @@
     [self.tableView reloadData];
 }
 
-#pragma mark - TableView Delegate & DataSource
-
-- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
-    return self.arFilteredApps.count;
-}
-
-- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return 1;
-}
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView { return self.arFilteredApps.count; }
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section { return 1; }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    NSString *cellId = HEX_DEC("41707043656C6C"); // "AppCell"
+    NSString *cellId = OBF("41707043656C6C"); // "AppCell"
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cellId];
     if (!cell) {
-        // 🎯 采用 Subtitle 样式，让包名完美展示在应用名称正下方
+        // Subtitle 样式，让包名在应用名正下方
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:cellId];
         cell.imageView.layer.masksToBounds = YES;
         cell.imageView.layer.cornerRadius = 12.0;
@@ -141,14 +134,13 @@
     id proxy = self.arFilteredApps[indexPath.section];
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-    SEL nameSel = NSSelectorFromString(HEX_DEC("6C6F63616C697A65644E616D65"));
-    SEL bundleSel = NSSelectorFromString(HEX_DEC("62756E646C654964656E746966696572"));
+    SEL nameSel = NSSelectorFromString(OBF("6C6F63616C697A65644E616D65"));
+    SEL bundleSel = NSSelectorFromString(OBF("62756E646C654964656E746966696572"));
     NSString *bundleID = [proxy performSelector:bundleSel];
     NSString *name = [proxy respondsToSelector:nameSel] ? [proxy performSelector:nameSel] : bundleID;
     
-    // 获取当前短版本号 (shortVersionString)
     NSString *version = @"-";
-    SEL versionSel = NSSelectorFromString(HEX_DEC("73686F727456657273696F6E537472696E67")); 
+    SEL versionSel = NSSelectorFromString(OBF("73686F727456657273696F6E537472696E67")); 
     if ([proxy respondsToSelector:versionSel]) {
         version = [proxy performSelector:versionSel];
     }
@@ -157,20 +149,20 @@
     cell.textLabel.text = name;
     cell.textLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightBold];
     
-    cell.detailTextLabel.text = bundleID; // 包名在 App 名字正下方
+    cell.detailTextLabel.text = bundleID; 
     cell.detailTextLabel.font = [UIFont systemFontOfSize:12];
     cell.detailTextLabel.textColor = [UIColor systemGrayColor];
     
-    // 🎯 动态创建一个靠右侧页面对齐显示的自定义 Label 展示版本号
+    // 🎯 版本号通过 accessoryView 展示在最右边
     UILabel *rightVerLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 75, 30)];
     rightVerLabel.text = [NSString stringWithFormat:@"v%@", version];
     rightVerLabel.font = [UIFont systemFontOfSize:13 weight:UIFontWeightMedium];
     rightVerLabel.textColor = [UIColor secondaryLabelColor];
     rightVerLabel.textAlignment = NSTextAlignmentRight;
-    cell.accessoryView = rightVerLabel; // 右侧对齐完美展示
+    cell.accessoryView = rightVerLabel; 
     
-    // 安全动态异步调用获取图标
-    SEL iconSel = NSSelectorFromString(HEX_DEC("5F6170706C69636174696F6E49636F6E496D616765466F7242756E646C654964656E7469666965723A666F726D61743A7363616C653A"));
+    // 获取图标
+    SEL iconSel = NSSelectorFromString(OBF("5F6170706C69636174696F6E49636F6E496D616765466F7242756E646C654964656E7469666965723A666F726D61743A7363616C653A"));
     if ([UIImage respondsToSelector:iconSel]) {
         NSMethodSignature *sig = [UIImage methodSignatureForSelector:iconSel];
         NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
@@ -202,9 +194,7 @@
     if (@available(iOS 14.0, *)) {
         UIBackgroundConfiguration *bg = cell.backgroundConfiguration;
         if (bg) {
-            bg.cornerRadius = radius; 
-            bg.strokeColor = [UIColor clearColor]; 
-            bg.strokeWidth = 0.0;
+            bg.cornerRadius = radius; bg.strokeColor = [UIColor clearColor]; bg.strokeWidth = 0.0;
             cell.backgroundConfiguration = bg;
         }
     }
@@ -223,24 +213,22 @@
     
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-    SEL nameSel = NSSelectorFromString(HEX_DEC("6C6F63616C697A65644E616D65"));
-    SEL bundleSel = NSSelectorFromString(HEX_DEC("62756E646C654964656E746966696572"));
+    SEL bundleSel = NSSelectorFromString(OBF("62756E646C654964656E746966696572"));
     NSString *bundleID = [proxy performSelector:bundleSel];
+    SEL nameSel = NSSelectorFromString(OBF("6C6F63616C697A65644E616D65"));
     NSString *name = [proxy respondsToSelector:nameSel] ? [proxy performSelector:nameSel] : bundleID;
 #pragma clang diagnostic pop
     
-    UIAlertController *loading = [UIAlertController alertControllerWithTitle:HEX_DEC("E8AFB7E7A88DE58099") // "请稍候"
-                                                                     message:HEX_DEC("E6ADA3E59CA8E8AFB7E6B182E69C8DE58AA1E599A8E88EB7E58F96E78988E69CACE58897E8A1A82E2E2E") // "正在请求服务器获取版本列表..."
+    UIAlertController *loading = [UIAlertController alertControllerWithTitle:OBF("E8AFB7E7A88DE58099") // "请稍候"
+                                                                     message:OBF("E6ADA3E59CA8E8AFB7E6B182E69C8DE58AA1E599A8E88EB7E58F96E78988E69CACE58897E8A1A82E2E2E") // "正在请求服务器获取版本列表..."
                                                               preferredStyle:UIAlertControllerStyleAlert];
     [self presentViewController:loading animated:YES completion:nil];
     
     [[ARDowngradeManager sharedManager] fetchTrackIDForBundleID:bundleID completion:^(long long trackId, NSError *error) {
         if (error || trackId == 0) {
             [loading dismissViewControllerAnimated:YES completion:^{
-                UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:HEX_DEC("E5A4B1E8B4A5") // "失败"
-                                                                                  message:error.localizedDescription 
-                                                                           preferredStyle:UIAlertControllerStyleAlert];
-                [errAlert addAction:[UIAlertAction actionWithTitle:HEX_DEC("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:nil]]; // "确定"
+                UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:OBF("E5A4B1E8B4A5") message:error.localizedDescription preferredStyle:UIAlertControllerStyleAlert];
+                [errAlert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:nil]];
                 [self presentViewController:errAlert animated:YES completion:nil];
             }];
             return;
@@ -249,19 +237,17 @@
         [[ARDowngradeManager sharedManager] fetchVersionsForTrackID:trackId completion:^(NSArray *versions, NSError *error) {
             [loading dismissViewControllerAnimated:YES completion:^{
                 if (error) {
-                    UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:HEX_DEC("E5A4B1E8B4A5") 
-                                                                                      message:error.localizedDescription 
-                                                                               preferredStyle:UIAlertControllerStyleAlert];
-                    [errAlert addAction:[UIAlertAction actionWithTitle:HEX_DEC("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:nil]];
+                    UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:OBF("E5A4B1E8B4A5") message:error.localizedDescription preferredStyle:UIAlertControllerStyleAlert];
+                    [errAlert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:nil]];
                     [self presentViewController:errAlert animated:YES completion:nil];
                     return;
                 }
                 
                 ARVersionViewController *versionVC = [[ARVersionViewController alloc] init];
-                versionVC.bundleID = bundleID;
-                versionVC.appName = name;
-                versionVC.trackID = trackId;
-                versionVC.versions = [versions sortedArrayUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:HEX_DEC("72656C656173655F64617465") ascending:NO]]]; // "release_date"
+                [versionVC setValue:bundleID forKey:OBF("62756E646C654944")];
+                [versionVC setValue:name forKey:OBF("6170704E616D65")];
+                [versionVC setValue:@(trackId) forKey:OBF("747261636B4944")];
+                [versionVC setValue:[versions sortedArrayUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:OBF("72656C656173655F64617465") ascending:NO]]] forKey:OBF("76657273696F6E73")];
                 [self.navigationController pushViewController:versionVC animated:YES];
             }];
         }];

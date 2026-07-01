@@ -75,12 +75,11 @@
     long long vId = [ver[OBF("65787465726E616C5F6964656E746966696572")] longLongValue]; 
     NSString *verStr = ver[OBF("62756E646C655F76657273696F6E")];
     
-    // 🎯 修复动态调用脱钩导致直接绕过安全验证执行的核心 Bug，现改为显式调用
+    // 🎯 由于已经在 Header 里声明，直接显式调用，最稳妥也最好排错
     [[ARDowngradeManager sharedManager] verifyOwnershipForBundleID:self.bundleID appPath:self.appPhysicalPath completion:^(BOOL isMatch, NSString *purchaser, NSString *active, NSArray *allAccounts) {
         if (isMatch) {
             [self executeDowngradeProcessWithVersionStr:verStr versionID:vId];
         } else {
-            // 🎯 彻底按照你的要求升级 UI：分别展示购买账号与当前账号，文本均做 Hex 加密
             NSString *mismatchTitle = OBF("E8B4A6E58FB7E4B88DE58CB9"); // "账号不匹配"
             NSString *purchaserText = OBF("E8B4ADE4B9B0E8B4A6E58FB7EFBC9A"); // "购买账号："
             NSString *activeText = OBF("E5BD93E5898DE8B4A6E58FB7EFBC9A"); // "当前账号："
@@ -100,13 +99,12 @@
                     }
                     [switchSheet addAction:[UIAlertAction actionWithTitle:btnTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction *act) {
                         
-                        // 🎯 弹出不可交互弹窗阻断操作
                         UIAlertController *switchingAlert = [UIAlertController alertControllerWithTitle:OBF("E58887E68DA2E4B8ADEFBC8CE8AFB7E7A88DE580992E2E2E") message:nil preferredStyle:UIAlertControllerStyleAlert]; // "切换中，请稍候..."
                         [self presentViewController:switchingAlert animated:YES completion:nil];
 
                         [[ARDowngradeManager sharedManager] executeAccountSwitchToName:accName];
                         
-                        // 🎯 核心修复：提升至安全的 1.5 秒延时等待系统底层帐号文件重写入完成，告别无限死循环！
+                        // 🎯 等待系统底层文件完全刷新，消除卡死 Bug
                         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                             [switchingAlert dismissViewControllerAnimated:YES completion:^{
                                 [self tableView:self.tableView didSelectRowAtIndexPath:indexPath];
@@ -133,16 +131,11 @@
         
         [[ARDowngradeManager sharedManager] installAppWithTrackID:self.trackID versionID:vId bundleID:self.bundleID];
         
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-            id app = [NSClassFromString(OBF("55494170706C69636174696F6E")) performSelector:NSSelectorFromString(OBF("7368617265644170706C69636174696F6E"))]; 
-            SEL suspSel = NSSelectorFromString(OBF("73757370656E64")); 
-            if ([app respondsToSelector:suspSel]) {
-                [app performSelector:suspSel]; 
-            }
-#pragma clang diagnostic pop
-        });
+        // 🎯 核心大改：之前在这里用 0.5s 执行了强制 suspend（程序挂起睡死）。
+        // 这就是兜底系统弹窗无法在屏幕上出现的罪魁祸首！由于应用沉睡，底层抛出的 Error 再也无法唤醒弹窗 UI。
+        // 现在改为：直接退回根控制器，保持程序前台活跃状态，耐心等待 Daemon 或 Fallback 成功执行。
+        [self.navigationController popToRootViewControllerAnimated:YES];
+        
     }]];
     [self presentViewController:alert animated:YES completion:nil];
 }

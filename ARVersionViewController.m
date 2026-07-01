@@ -75,77 +75,52 @@
     long long vId = [ver[OBF("65787465726E616C5F6964656E746966696572")] longLongValue]; 
     NSString *verStr = ver[OBF("62756E646C655F76657273696F6E")];
     
-    SEL verifySel = NSSelectorFromString(OBF("7665726966794F776E657273686970466F7242756E646C6549443A617070506174683A636F6D706C6574696F6E3A"));
-    
-    if ([[ARDowngradeManager sharedManager] respondsToSelector:verifySel]) {
-        void (^verifyBlock)(BOOL, NSString *, NSString *, NSArray *) = ^(BOOL isMatch, NSString *purchaser, NSString *active, NSArray *allAccounts) {
+    // 🎯 修复动态调用脱钩导致直接绕过安全验证执行的核心 Bug，现改为显式调用
+    [[ARDowngradeManager sharedManager] verifyOwnershipForBundleID:self.bundleID appPath:self.appPhysicalPath completion:^(BOOL isMatch, NSString *purchaser, NSString *active, NSArray *allAccounts) {
+        if (isMatch) {
+            [self executeDowngradeProcessWithVersionStr:verStr versionID:vId];
+        } else {
+            // 🎯 彻底按照你的要求升级 UI：分别展示购买账号与当前账号，文本均做 Hex 加密
+            NSString *mismatchTitle = OBF("E8B4A6E58FB7E4B88DE58CB9"); // "账号不匹配"
+            NSString *purchaserText = OBF("E8B4ADE4B9B0E8B4A6E58FB7EFBC9A"); // "购买账号："
+            NSString *activeText = OBF("E5BD93E5898DE8B4A6E58FB7EFBC9A"); // "当前账号："
             
-            if (isMatch) {
-                [self executeDowngradeProcessWithVersionStr:verStr versionID:vId];
-            } else {
-                // 🎯 优化 UI 呈现与文字，全部 Hex 化
-                NSString *mismatchTitle = OBF("E8B4A6E58FB7E4B88DE58CB9"); // "账号不匹配"
-                NSString *purchaserText = OBF("E8B4ADE4B9B0E8B4A6E58FB7EFBC9A"); // "购买账号："
-                NSString *activeText = OBF("E5BD93E5898DE8B4A6E58FB7EFBC9A"); // "当前账号："
+            NSString *msg = [NSString stringWithFormat:@"%@\n\n%@ %@\n%@ %@", mismatchTitle, purchaserText, purchaser ?: @"-", activeText, active ?: @"-"];
+            UIAlertController *mismatchAlert = [UIAlertController alertControllerWithTitle:OBF("E9AA8CE8AF81E5A4B1E8B4A5") message:msg preferredStyle:UIAlertControllerStyleAlert]; 
+            
+            [mismatchAlert addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]]; 
+            [mismatchAlert addAction:[UIAlertAction actionWithTitle:OBF("E58887E68DA2E8B4A6E58FB7") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { 
                 
-                NSString *msg = [NSString stringWithFormat:@"%@\n\n%@ %@\n%@ %@", mismatchTitle, purchaserText, purchaser, activeText, active];
-                UIAlertController *mismatchAlert = [UIAlertController alertControllerWithTitle:OBF("E9AA8CE8AF81E5A4B1E8B4A5") message:msg preferredStyle:UIAlertControllerStyleAlert]; 
+                UIAlertController *switchSheet = [UIAlertController alertControllerWithTitle:OBF("E98089E68B9CE8B4A6E58FB7") message:purchaser preferredStyle:UIAlertControllerStyleActionSheet]; 
                 
-                [mismatchAlert addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]]; 
-                [mismatchAlert addAction:[UIAlertAction actionWithTitle:OBF("E58887E68DA2E8B4A6E58FB7") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { 
-                    
-                    UIAlertController *switchSheet = [UIAlertController alertControllerWithTitle:OBF("E98089E68B9CE8B4A6E58FB7") message:purchaser preferredStyle:UIAlertControllerStyleActionSheet]; 
-                    
-                    for (NSString *accName in allAccounts) {
-                        NSString *btnTitle = accName;
-                        if ([accName caseInsensitiveCompare:purchaser] == NSOrderedSame) {
-                            btnTitle = [NSString stringWithFormat:OBF("2A20E58887E68DA2E588B03A202540"), accName]; 
-                        }
-                        [switchSheet addAction:[UIAlertAction actionWithTitle:btnTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction *act) {
-                            
-                            // 🎯 弹出阻断型交互，提示系统正在切换
-                            UIAlertController *switchingAlert = [UIAlertController alertControllerWithTitle:OBF("E58887E68DA2E4B8ADEFBC8CE8AFB7E7A88DE580992E2E2E") message:nil preferredStyle:UIAlertControllerStyleAlert]; // "切换中，请稍候..."
-                            [self presentViewController:switchingAlert animated:YES completion:nil];
-
-                            SEL switchSel = NSSelectorFromString(OBF("657865637574654163636F756E74537769746368546F4E616D653A"));
-                            if ([[ARDowngradeManager sharedManager] respondsToSelector:switchSel]) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-                                [[ARDowngradeManager sharedManager] performSelector:switchSel withObject:accName];
-#pragma clang diagnostic pop
-                            }
-                            
-                            // 🎯 核心延迟调参：将 0.4s 修改为更安全的 1.2s，保证 Daemon 后台数据库彻底刷新，不再循环报错
-                            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                                [switchingAlert dismissViewControllerAnimated:YES completion:^{
-                                    [self tableView:self.tableView didSelectRowAtIndexPath:indexPath];
-                                }];
-                            });
-                        }]];
+                for (NSString *accName in allAccounts) {
+                    NSString *btnTitle = accName;
+                    if ([accName caseInsensitiveCompare:purchaser] == NSOrderedSame) {
+                        btnTitle = [NSString stringWithFormat:OBF("2A20E58887E68DA2E588B03A202540"), accName]; 
                     }
-                    [switchSheet addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]];
-                    [self presentViewController:switchSheet animated:YES completion:nil];
-                }]];
-                
-                [self presentViewController:mismatchAlert animated:YES completion:nil];
-            }
-        };
-        
-        NSMethodSignature *sig = [[[ARDowngradeManager sharedManager] class] instanceMethodSignatureForSelector:verifySel];
-        NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-        [inv setTarget:[ARDowngradeManager sharedManager]];
-        [inv setSelector:verifySel];
-        
-        NSString *tempBundle = self.bundleID;
-        NSString *tempPath = self.appPhysicalPath;
-        
-        [inv setArgument:&tempBundle atIndex:2];
-        [inv setArgument:&tempPath atIndex:3];
-        [inv setArgument:&verifyBlock atIndex:4];
-        [inv invoke];
-    } else {
-        [self executeDowngradeProcessWithVersionStr:verStr versionID:vId];
-    }
+                    [switchSheet addAction:[UIAlertAction actionWithTitle:btnTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction *act) {
+                        
+                        // 🎯 弹出不可交互弹窗阻断操作
+                        UIAlertController *switchingAlert = [UIAlertController alertControllerWithTitle:OBF("E58887E68DA2E4B8ADEFBC8CE8AFB7E7A88DE580992E2E2E") message:nil preferredStyle:UIAlertControllerStyleAlert]; // "切换中，请稍候..."
+                        [self presentViewController:switchingAlert animated:YES completion:nil];
+
+                        [[ARDowngradeManager sharedManager] executeAccountSwitchToName:accName];
+                        
+                        // 🎯 核心修复：提升至安全的 1.5 秒延时等待系统底层帐号文件重写入完成，告别无限死循环！
+                        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                            [switchingAlert dismissViewControllerAnimated:YES completion:^{
+                                [self tableView:self.tableView didSelectRowAtIndexPath:indexPath];
+                            }];
+                        });
+                    }]];
+                }
+                [switchSheet addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]];
+                [self presentViewController:switchSheet animated:YES completion:nil];
+            }]];
+            
+            [self presentViewController:mismatchAlert animated:YES completion:nil];
+        }
+    }];
 }
 
 - (void)executeDowngradeProcessWithVersionStr:(NSString *)verStr versionID:(long long)vId {

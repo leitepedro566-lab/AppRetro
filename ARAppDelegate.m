@@ -13,10 +13,7 @@
     // 强制大标题配合药丸UI更美观
     nav.navigationBar.prefersLargeTitles = YES;
     
-    // 🎯 顶栏（导航栏）底部两侧全局圆角 (上方两个角不变化，只有下方两角圆角)
-    nav.navigationBar.layer.cornerRadius = 25.0;
-    nav.navigationBar.layer.maskedCorners = kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
-    nav.navigationBar.layer.masksToBounds = YES;
+    // 🎯 已移除此处导致顶部无法贴合屏幕的强制裁剪代码，移交至各自控制器的背景视图进行安全圆角处理
     
     self.window.rootViewController = nav;
     [self.window makeKeyAndVisible];

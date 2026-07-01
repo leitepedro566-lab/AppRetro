@@ -29,7 +29,8 @@
 
 - (void)recursiveFetchTrackID:(NSString *)bundleID codes:(NSArray *)codes index:(NSInteger)index completion:(void(^)(long long, NSError *))completion {
     if (index >= codes.count) {
-        if (completion) completion(0, [NSError errorWithDomain:OBF("417070526574726F") code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E5B7B2E5B09DE8AF95E68980E69C89E59CB0E58CBAEFBC8CE4BE9DE784B6E69CAAE689BEE588B0E8AFA5E5BA94E794A8")}]);
+        // 🎯 提示文案变更为：“未找到应用”
+        if (completion) completion(0, [NSError errorWithDomain:OBF("417070526574726F") code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E69CAAE689BEE588B0E5BA94E794A8")}]);
         return;
     }
     NSString *urlFormat = OBF("68747470733A2F2F6974756E65732E6170706C652E636F6D2F6C6F6F6B75703F62756E646C6549643D2540266C696D69743D31266D656469613D736F66747761726526636F756E7472793D2540");
@@ -106,7 +107,7 @@
 #pragma clang diagnostic pop
 
         if (name) {
-            // 🎯 排除名为 local 的无效系统内部账号
+            // 排除名为 local 的无效系统内部账号
             if ([name.lowercaseString isEqualToString:OBF("6C6F63616C")]) continue;
             [allLocalNames addObject:name];
         }
@@ -183,7 +184,6 @@
     NSString *prefStr = OBF("2F7661722F6D6F62696C652F4C6962726172792F507265666572656E6365732F636F6D2E73746F726573776974636865722E6163746976652E747874");
     [targetName writeToFile:prefStr atomically:YES encoding:NSUTF8StringEncoding error:nil];
     
-    // 🎯 修复 NSInvocation 双重指针崩溃：正确传入 NSError ** 且声明为 __autoreleasing
     SEL saveSel = NSSelectorFromString(OBF("736176654163636F756E743A76657269667943726564656E7469616C733A6572726F723A"));
     if ([store respondsToSelector:saveSel]) {
         BOOL verify = NO; 
@@ -214,7 +214,6 @@
     CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (__bridge CFStringRef)OBF("636F6D2E73746F7265737769746865722E6163636F756E74735F6368616E676564"), NULL, NULL, YES);
 }
 
-// 🎯 优化：参考 AppData 彻底去除了 NSInvocation，采用私有方法强转，更加安全且极速
 - (void)fallbackInstallWithTrackID:(long long)trackId versionID:(long long)versionId {
     NSString *skuiPath = OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F72654B697455492E6672616D65776F726B2F53746F72654B69745549");
     void *handle = dlopen([skuiPath UTF8String], RTLD_LAZY);
@@ -335,9 +334,6 @@
                 }
                 
                 if (actualError) {
-                    // 🎯 核心提速机制：不再排队转交主线程（消除 dispatch_async 开销）。
-                    // 当底层 XPC 接收到来自苹果服务器拦截报错的那一微秒，
-                    // 直接在当前高优并发队列瞬间抛给 StoreKitUI 接管原生降级流程。
                     [self fallbackInstallWithTrackID:trackId versionID:versionId];
                 }
             };

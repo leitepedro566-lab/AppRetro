@@ -174,12 +174,12 @@
     NSString *prefStr = OBF("2F7661722F6D6F62696C652F4C6962726172792F507265666572656E6365732F636F6D2E73746F726573776974636865722E6163746976652E747874");
     [targetName writeToFile:prefStr atomically:YES encoding:NSUTF8StringEncoding error:nil];
     
-    // 🎯 修复 NSInvocation 双重指针崩溃：正确传入 NSError **
+    // 🎯 修复 NSInvocation 双重指针崩溃：正确传入 NSError ** 且声明为 __autoreleasing
     SEL saveSel = NSSelectorFromString(OBF("736176654163636F756E743A76657269667943726564656E7469616C733A6572726F723A"));
     if ([store respondsToSelector:saveSel]) {
         BOOL verify = NO; 
-        id errorOut = nil;
-        id *errPtr = &errorOut;
+        id __autoreleasing errorOut = nil;
+        id __autoreleasing *errPtr = &errorOut;
         NSMethodSignature *sig = [store methodSignatureForSelector:saveSel];
         NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
         [inv setTarget:store]; 

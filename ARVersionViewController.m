@@ -13,9 +13,18 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    // 🎯 顶部标题文案变更为：“xxx 降级/升级”
     self.title = [NSString stringWithFormat:OBF("254020E9998DE7BAA72FE58D87E7BAA7"), self.appName]; 
     self.tableView.separatorColor = [UIColor clearColor];
+    
+    // 🎯 修复顶栏不贴合屏幕顶部的问题：针对当前压栈的子页面，确保导航栏底层背景视图底部圆角正确显示
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIView *barBg = self.navigationController.navigationBar.subviews.firstObject;
+        if (barBg) {
+            barBg.layer.cornerRadius = 25.0;
+            barBg.layer.maskedCorners = kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
+            barBg.layer.masksToBounds = YES;
+        }
+    });
 }
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView { 
@@ -114,7 +123,6 @@
                     }
                     [switchSheet addAction:[UIAlertAction actionWithTitle:btnTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction *act) {
                         
-                        // 🎯 切换文案调整为："切换中，稍后..."
                         UIAlertController *switchingAlert = [UIAlertController alertControllerWithTitle:OBF("E58887E68DA2E4B8ADEFBC8CE7A88DE5908E2E2E2E") message:nil preferredStyle:UIAlertControllerStyleAlert];
                         applyRoundedUI(switchingAlert);
                         [self presentViewController:switchingAlert animated:YES completion:nil];

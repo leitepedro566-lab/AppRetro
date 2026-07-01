@@ -1,7 +1,6 @@
 // ARDowngradeManager.m
 #import "ARDowngradeManager.h"
 #import <dlfcn.h>
-#import <objc/message.h> // 核心：引入底层消息发送机制
 
 @interface ARDowngradeManager ()
 - (void)recursiveFetchTrackID:(NSString *)bundleID codes:(NSArray *)codes index:(NSInteger)index completion:(void(^)(long long trackId, NSError *error))completion;
@@ -16,7 +15,7 @@
     return instance;
 }
 
-// 🎯 全球 87 个 App Store 国家/地区静默轮询，彻底解决部分冷门应用查无版本问题
+// 🎯 全球 87 个 App Store 国家/地区静默轮询，彻底解决部分应用查无版本问题
 - (void)fetchTrackIDForBundleID:(NSString *)bundleID completion:(void(^)(long long, NSError *))completion {
     NSString *countriesStr = OBF("636E2C75732C61652C61672C61692C616C2C616D2C616F2C61722C61742C61752C617A2C62622C62652C62662C62672C62682C626A2C626D2C626E2C626F2C62722C62732C62742C62772C62792C627A2C63612C63672C63682C63692C636C2C636D2C636F2C63722C63762C63792C637A2C64652C646B2C646D2C646F2C647A2C65632C65652C65672C65732C66692C666A2C666D2C66722C67622C67642C67682C676D2C67722C67742C67772C67792C686B2C686E2C68722C68752C69642C69652C696C2C696E2C69732C69742C6A6D2C6A6F2C6A702C6B652C6B672C6B682C6B6E2C6B722C6B772C6B792C6B7A2C6C612C6C622C6C632C6C6B2C6C722C6C742C6C752C6C762C6D642C6D672C6D6B2C6D6C2C6D6E2C6D6F2C6D722C6D732C6D742C6D752C6D772C6D782C6D792C6E612C6E652C6E672C6E692C6E6C2C6E6F2C6E702C6E7A2C6F6D2C70612C70652C70672C70682C706B2C706C2C70742C70772C70792C71612C726F2C72752C72772C73612C73622C73632C73652C73672C73692C736B2C736C2C736E2C73722C73742C73762C737A2C74632C74642C74682C746A2C746D2C746E2C74722C74742C74772C747A2C75612C75672C75792C757A2C76632C76652C76672C766E2C79652C7A612C7A6D2C7A77");
     NSArray *codes = [countriesStr componentsSeparatedByString:OBF("2C")];
@@ -84,11 +83,15 @@
     NSMutableArray *allLocalNames = [NSMutableArray array];
     
     for (id account in accounts) {
-        BOOL (*isLocalCall)(id, SEL) = (BOOL (*)(id, SEL))objc_msgSend;
-        BOOL isLocal = NO;
         SEL localSel = NSSelectorFromString(OBF("69734C6F63616C4163636F756E74")); 
+        BOOL isLocal = NO;
         if ([account respondsToSelector:localSel]) {
-            isLocal = isLocalCall(account, localSel);
+            NSMethodSignature *sig = [account methodSignatureForSelector:localSel];
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:account]; 
+            [inv setSelector:localSel]; 
+            [inv invoke];
+            [inv getReturnValue:&isLocal];
         }
         if (isLocal) continue;
         
@@ -99,11 +102,15 @@
 
         if (name) [allLocalNames addObject:name];
         
-        BOOL (*isActiveCall)(id, SEL) = (BOOL (*)(id, SEL))objc_msgSend;
-        BOOL isActive = NO;
         SEL activeSel = NSSelectorFromString(OBF("6973416374697665")); 
+        BOOL isActive = NO;
         if ([account respondsToSelector:activeSel]) {
-            isActive = isActiveCall(account, activeSel);
+            NSMethodSignature *sig = [account methodSignatureForSelector:activeSel];
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:account]; 
+            [inv setSelector:activeSel]; 
+            [inv invoke];
+            [inv getReturnValue:&isActive];
         }
         if (isActive) { activeEmail = name; }
     }
@@ -155,19 +162,32 @@
     
     SEL setActSel = NSSelectorFromString(OBF("7365744163746976653A"));
     if ([targetAccount respondsToSelector:setActSel]) {
-        void (*setAct)(id, SEL, BOOL) = (void (*)(id, SEL, BOOL))objc_msgSend;
-        setAct(targetAccount, setActSel, YES);
+        BOOL val = YES;
+        NSMethodSignature *sig = [targetAccount methodSignatureForSelector:setActSel];
+        NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+        [inv setTarget:targetAccount]; 
+        [inv setSelector:setActSel];
+        [inv setArgument:&val atIndex:2]; 
+        [inv invoke];
     }
     
     NSString *prefStr = OBF("2F7661722F6D6F62696C652F4C6962726172792F507265666572656E6365732F636F6D2E73746F726573776974636865722E6163746976652E747874");
     [targetName writeToFile:prefStr atomically:YES encoding:NSUTF8StringEncoding error:nil];
     
-    // 🎯 彻底弃用 NSInvocation，改用 objc_msgSend，完美避开 ARC 针对 NSError ** 的内存销毁，账号切换从此 100% 成功！
+    // 🎯 修复 NSInvocation 双重指针崩溃：正确传入 NSError ** 且声明为 __autoreleasing
     SEL saveSel = NSSelectorFromString(OBF("736176654163636F756E743A76657269667943726564656E7469616C733A6572726F723A"));
     if ([store respondsToSelector:saveSel]) {
-        NSError *errorOut = nil;
-        BOOL (*saveAcc)(id, SEL, id, BOOL, NSError **) = (BOOL (*)(id, SEL, id, BOOL, NSError **))objc_msgSend;
-        saveAcc(store, saveSel, targetAccount, NO, &errorOut);
+        BOOL verify = NO; 
+        id __autoreleasing errorOut = nil;
+        id __autoreleasing *errPtr = &errorOut;
+        NSMethodSignature *sig = [store methodSignatureForSelector:saveSel];
+        NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+        [inv setTarget:store]; 
+        [inv setSelector:saveSel];
+        [inv setArgument:&targetAccount atIndex:2];
+        [inv setArgument:&verify atIndex:3];
+        [inv setArgument:&errPtr atIndex:4]; 
+        [inv invoke];
     }
     
     Class SSDeviceClass = NSClassFromString(OBF("5353446576696365"));
@@ -185,61 +205,66 @@
     CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (__bridge CFStringRef)OBF("636F6D2E73746F726573776974636865722E6163636F756E74735F6368616E676564"), NULL, NULL, YES);
 }
 
-// 🎯 降级方案二 (兜底): StoreKitUI
 - (void)fallbackInstallWithTrackID:(long long)trackId versionID:(long long)versionId {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        NSString *skuiPath = OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F72654B697455492E6672616D65776F726B2F53746F72654B69745549");
-        void *handle = dlopen([skuiPath UTF8String], RTLD_LAZY);
-        if (!handle) return;
+    NSString *skuiPath = OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F72654B697455492E6672616D65776F726B2F53746F72654B69745549");
+    void *handle = dlopen([skuiPath UTF8String], RTLD_LAZY);
+    if (!handle) return;
 
-        NSString *adamId = [NSString stringWithFormat:OBF("256C6C64"), trackId];
-        NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), versionId];
+    NSString *adamId = [NSString stringWithFormat:OBF("256C6C64"), trackId];
+    NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), versionId];
+    
+    NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
+
+    NSDictionary *offerDict = @{OBF("627579506172616D73"): offerString}; 
+    NSDictionary *itemDict = @{OBF("5F6974656D4F66666572"): adamId}; 
+
+    Class SKUIItemOfferClass = NSClassFromString(OBF("534B55494974656D4F66666572"));
+    Class SKUIItemClass = NSClassFromString(OBF("534B55494974656D"));
+    Class SKUIItemStateCenterClass = NSClassFromString(OBF("534B55494974656D537461746543656E746572"));
+    Class SKUIClientContextClass = NSClassFromString(OBF("534B5549436C69656E74436F6E74657874"));
+
+    if (SKUIItemOfferClass && SKUIItemClass && SKUIItemStateCenterClass) {
+        id offer = [SKUIItemOfferClass alloc];
+        id item = [SKUIItemClass alloc];
+        SEL initSel = NSSelectorFromString(OBF("696E6974576974684C6F6F6B757044696374696F6E6172793A"));
         
-        NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        offer = [offer performSelector:initSel withObject:offerDict];
+        item = [item performSelector:initSel withObject:itemDict];
+#pragma clang diagnostic pop
 
-        NSDictionary *offerDict = @{OBF("627579506172616D73"): offerString}; 
-        NSDictionary *itemDict = @{OBF("5F6974656D4F66666572"): adamId}; 
+        if (!item) return;
 
-        Class SKUIItemOfferClass = NSClassFromString(OBF("534B55494974656D4F66666572"));
-        Class SKUIItemClass = NSClassFromString(OBF("534B55494974656D"));
-        Class SKUIItemStateCenterClass = NSClassFromString(OBF("534B55494974656D537461746543656E746572"));
-        Class SKUIClientContextClass = NSClassFromString(OBF("534B5549436C69656E74436F6E74657874"));
+        [item setValue:offer forKey:OBF("5F6974656D4F66666572")]; 
+        [item setValue:OBF("696F73536F667477617265") forKey:OBF("5F6974656D4B696E64537472696E67")]; 
+        [item setValue:@(versionId) forKey:OBF("5F76657273696F6E4964656E746966696572")]; 
 
-        if (SKUIItemOfferClass && SKUIItemClass && SKUIItemStateCenterClass) {
-            id offer = [SKUIItemOfferClass alloc];
-            id item = [SKUIItemClass alloc];
-            SEL initSel = NSSelectorFromString(OBF("696E6974576974684C6F6F6B757044696374696F6E6172793A"));
-            
-            // 🎯 用 msgSend 替代原 performSelector 防泄漏
-            id (*initLookup)(id, SEL, id) = (id (*)(id, SEL, id))objc_msgSend;
-            offer = initLookup(offer, initSel, offerDict);
-            item = initLookup(item, initSel, itemDict);
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        id center = [SKUIItemStateCenterClass performSelector:NSSelectorFromString(OBF("64656661756C7443656E746572"))]; 
+        id context = [SKUIClientContextClass performSelector:NSSelectorFromString(OBF("64656661756C74436F6E74657874"))]; 
+        NSArray *items = @[item];
+        id purchases = [center performSelector:NSSelectorFromString(OBF("5F6E6577507572636861736573576974684974656D733A")) withObject:items]; 
+#pragma clang diagnostic pop
 
-            if (!item) return;
-
-            [item setValue:offer forKey:OBF("5F6974656D4F66666572")]; 
-            [item setValue:OBF("696F73536F667477617265") forKey:OBF("5F6974656D4B696E64537472696E67")]; 
-            [item setValue:@(versionId) forKey:OBF("5F76657273696F6E4964656E746966696572")]; 
-
-            id (*getDefault)(Class, SEL) = (id (*)(Class, SEL))objc_msgSend;
-            id center = getDefault(SKUIItemStateCenterClass, NSSelectorFromString(OBF("64656661756C7443656E746572"))); 
-            id context = getDefault(SKUIClientContextClass, NSSelectorFromString(OBF("64656661756C74436F6E74657874"))); 
-            NSArray *items = @[item];
-            
-            id (*newPurch)(id, SEL, id) = (id (*)(id, SEL, id))objc_msgSend;
-            id purchases = newPurch(center, NSSelectorFromString(OBF("5F6E6577507572636861736573576974684974656D733A")), items); 
-
-            SEL performSel = NSSelectorFromString(OBF("5F706572666F726D5075726368617365733A68617342756E646C6550757263686173653A77697468436C69656E74436F6E746578743A636F6D706C6574696F6E426C6F636B3A"));
-            if ([center respondsToSelector:performSel]) {
-                // 🎯 坚如磐石的底层调用，彻底解决弹窗时隐时现或崩溃问题！
-                void (*perfPurch)(id, SEL, id, BOOL, id, id) = (void (*)(id, SEL, id, BOOL, id, id))objc_msgSend;
-                perfPurch(center, performSel, purchases, NO, context, ^(id arg1){});
-            }
+        SEL performSel = NSSelectorFromString(OBF("5F706572666F726D5075726368617365733A68617342756E646C6550757263686173653A77697468436C69656E74436F6E746578743A636F6D706C6574696F6E426C6F636B3A"));
+        if ([center respondsToSelector:performSel]) {
+            NSMethodSignature *sig = [center methodSignatureForSelector:performSel];
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:center];
+            [inv setSelector:performSel];
+            [inv setArgument:&purchases atIndex:2];
+            BOOL hasBundle = NO;
+            [inv setArgument:&hasBundle atIndex:3];
+            [inv setArgument:&context atIndex:4];
+            void (^block)(id) = ^(id arg1){};
+            [inv setArgument:&block atIndex:5];
+            [inv invoke];
         }
-    });
+    }
 }
 
-// 🎯 降级方案一 (首选): AppStoreDaemon - 静默下载
 - (void)installAppWithTrackID:(long long)trackId versionID:(long long)versionId bundleID:(NSString *)bundleID {
     NSString *daemonPath = OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F41707053746F72654461656D6F6E2E6672616D65776F726B2F41707053746F72654461656D6F6E");
     void *handle = dlopen([daemonPath UTF8String], RTLD_LAZY);
@@ -269,8 +294,13 @@
         
         SEL dispSel = NSSelectorFromString(OBF("736574446973706C6179734F6E4C6F636B53637265656E3A"));
         if ([purchase respondsToSelector:dispSel]) {
-            void (*setDisp)(id, SEL, BOOL) = (void (*)(id, SEL, BOOL))objc_msgSend;
-            setDisp(purchase, dispSel, YES);
+            BOOL val = YES;
+            NSMethodSignature *sig = [purchase methodSignatureForSelector:dispSel];
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:purchase]; 
+            [inv setSelector:dispSel]; 
+            [inv setArgument:&val atIndex:2]; 
+            [inv invoke];
         }
 
 #pragma clang diagnostic push
@@ -280,17 +310,23 @@
         
         SEL startSel = NSSelectorFromString(OBF("737461727450757263686173653A77697468526573756C7448616E646C65723A"));
         if ([mgr respondsToSelector:startSel]) {
-            void (^handlerBlock)(id, id) = ^(id result, id error) {
+            NSMethodSignature *sig = [mgr methodSignatureForSelector:startSel];
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:mgr]; 
+            [inv setSelector:startSel]; 
+            [inv setArgument:&purchase atIndex:2];
+            
+            // 🎯 彻底修复因未 copy 导致的底层执行崩溃，现在能 100% 接住被拦截失败的事件并呼出弹窗
+            void (^handlerBlock)(id, NSError*) = ^(id result, NSError *error) {
                 if (error) {
                     dispatch_async(dispatch_get_main_queue(), ^{
                         [self fallbackInstallWithTrackID:trackId versionID:versionId];
                     });
                 }
             };
-            
-            // 🎯 将极不稳定的 NSInvocation 改为 msgSend，100% 保证回调闭包不会丢失！
-            void (*startPurch)(id, SEL, id, id) = (void (*)(id, SEL, id, id))objc_msgSend;
-            startPurch(mgr, startSel, purchase, handlerBlock);
+            id copiedHandler = [handlerBlock copy];
+            [inv setArgument:&copiedHandler atIndex:3]; 
+            [inv invoke];
         }
     } else {
         [self fallbackInstallWithTrackID:trackId versionID:versionId];

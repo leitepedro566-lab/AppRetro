@@ -94,7 +94,6 @@
     [validApps sortUsingComparator:^NSComparisonResult(id a, id b) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-        // 🎯 配合 Info.plist，优先获取绝对的 localizedName，系统会自动根据 AppRetro 的本地化属性返回中文
         SEL nameSel = NSSelectorFromString(OBF("6C6F63616C697A65644E616D65")); 
         SEL shortNameSel = NSSelectorFromString(OBF("6C6F63616C697A656453686F72744E616D65"));
         SEL bundleSel = NSSelectorFromString(OBF("62756E646C654964656E746966696572"));
@@ -245,55 +244,12 @@
     NSString *fullAppPath = bundleURL.path;
 #pragma clang diagnostic pop
     
-    void (^applyRoundedUI)(UIAlertController *) = ^(UIAlertController *ac) {
-        CGFloat radius = 22.0;
-        CACornerMask mask = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
-        ac.view.layer.cornerRadius = radius;
-        ac.view.layer.maskedCorners = mask;
-        ac.view.layer.masksToBounds = YES;
-        for (UIView *v in ac.view.subviews.firstObject.subviews) {
-            v.layer.cornerRadius = radius;
-            v.layer.maskedCorners = mask;
-            v.layer.masksToBounds = YES;
-        }
-    };
-
-    UIAlertController *loading = [UIAlertController alertControllerWithTitle:OBF("E7A88DE5908E") message:OBF("E88EB7E58F96E78988E69CACE58897E8A1A82E2E2E") preferredStyle:UIAlertControllerStyleAlert];
-    applyRoundedUI(loading);
-    [self presentViewController:loading animated:YES completion:nil];
+    // 🎯 核心改动：不再原地加载，而是直接创建 Controller 并推送，把网络请求转移到了版本页
+    ARVersionViewController *versionVC = [[ARVersionViewController alloc] init];
+    versionVC.bundleID = bundleIdStr; 
+    versionVC.appName = name;
+    versionVC.appPhysicalPath = fullAppPath; 
     
-    [[ARDowngradeManager sharedManager] fetchTrackIDForBundleID:bundleIdStr completion:^(long long trackId, NSError *error) {
-        if (error || trackId == 0) {
-            [loading dismissViewControllerAnimated:YES completion:^{
-                UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:OBF("E5A4B1E8B4A5") message:error.localizedDescription preferredStyle:UIAlertControllerStyleAlert];
-                applyRoundedUI(errAlert);
-                [errAlert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:nil]];
-                [self presentViewController:errAlert animated:YES completion:nil];
-            }];
-            return;
-        }
-        
-        [[ARDowngradeManager sharedManager] fetchVersionsForTrackID:trackId completion:^(NSArray *versionsArr, NSError *error) {
-            [loading dismissViewControllerAnimated:YES completion:^{
-                if (error) {
-                    UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:OBF("E5A4B1E8B4A5") message:error.localizedDescription preferredStyle:UIAlertControllerStyleAlert];
-                    applyRoundedUI(errAlert);
-                    [errAlert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:nil]];
-                    [self presentViewController:errAlert animated:YES completion:nil];
-                    return;
-                }
-                
-                ARVersionViewController *versionVC = [[ARVersionViewController alloc] init];
-                versionVC.bundleID = bundleIdStr; 
-                versionVC.appName = name;
-                versionVC.trackID = trackId;
-                versionVC.versions = [versionsArr sortedArrayUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:OBF("72656C656173655F64617465") ascending:NO]]]; 
-                
-                versionVC.appPhysicalPath = fullAppPath; 
-                
-                [self.navigationController pushViewController:versionVC animated:YES];
-            }];
-        }];
-    }];
+    [self.navigationController pushViewController:versionVC animated:YES];
 }
 @end

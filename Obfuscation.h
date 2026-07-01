@@ -2,6 +2,9 @@
 #ifndef Obfuscation_h
 #define Obfuscation_h
 
+// 🎯 新增环境检测宏：如果是编译 Objective-C 文件才加载，编译汇编文件则跳过
+#ifdef __OBJC__ 
+
 #import <Foundation/Foundation.h>
 
 // 1. Classes - 彻底打乱类名，从 Mach-O 符号表中抹除所有明文类名特征
@@ -58,5 +61,7 @@ static __attribute__((always_inline)) inline NSString * _l1ll1l1O_(const char *h
 }
 
 #define OBF(x) _l1ll1l1O_(x)
+
+#endif /* __OBJC__ */ // 🎯 结束环境检测宏
 
 #endif /* Obfuscation_h */

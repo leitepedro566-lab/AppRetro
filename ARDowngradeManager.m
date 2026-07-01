@@ -216,8 +216,8 @@
     void *ssHandle = dlopen([OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F726553657276696365732E6672616D65776F726B2F53746F72655365727669636573") UTF8String], RTLD_LAZY);
     if (!ssHandle) return;
 
-    Class SSPurchaseClass = NSClassFromString(OBF("53535075726368617365"));
-    Class SSPurchaseRequestClass = NSClassFromString(OBF("5353507572636861736552657175657374"));
+    Class SSPurchaseClass = NSClassFromString(OBF("53535075726368617365")); // SSPurchase
+    Class SSPurchaseRequestClass = NSClassFromString(OBF("5353507572636861736552657175657374")); // SSPurchaseRequest
     
     if (SSPurchaseClass && SSPurchaseRequestClass) {
         id purchase = [[SSPurchaseClass alloc] init];
@@ -226,57 +226,63 @@
         NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), versionId];
         NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D312668617341736B6564546F446F776E6C6F6164557064617465733D31"), adamId, appExtVrsId];
 
-        // 1. setBuyParameters:
-        SEL setBuyParamsSel = NSSelectorFromString(OBF("736574427579506172616D65746572733A"));
+        // 🎯 1. 强力注入配置，完全抛弃可能会引发异常的 KVC
+        SEL setBuyParamsSel = NSSelectorFromString(OBF("736574427579506172616D65746572733A")); // setBuyParameters:
         if ([purchase respondsToSelector:setBuyParamsSel]) {
-            NSMethodSignature *sig = [purchase methodSignatureForSelector:setBuyParamsSel];
-            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-            [inv setTarget:purchase]; [inv setSelector:setBuyParamsSel]; [inv setArgument:&offerString atIndex:2]; [inv invoke];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            [purchase performSelector:setBuyParamsSel withObject:offerString];
+#pragma clang diagnostic pop
         }
         
-        // 2. setUniqueIdentifier: (long long)
-        SEL setUniqueIdSel = NSSelectorFromString(OBF("736574556E697175654964656E7469666965723A"));
+        // 🎯 2. 精确调用 C 函数指针赋值，解决唯一标识符崩溃问题
+        SEL setUniqueIdSel = NSSelectorFromString(OBF("736574556E697175654964656E7469666965723A")); // setUniqueIdentifier:
         if ([purchase respondsToSelector:setUniqueIdSel]) {
-            NSMethodSignature *sig = [purchase methodSignatureForSelector:setUniqueIdSel];
-            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-            [inv setTarget:purchase]; [inv setSelector:setUniqueIdSel]; [inv setArgument:&trackId atIndex:2]; [inv invoke];
+            void (*setUniqueId)(id, SEL, long long) = (void *)[purchase methodForSelector:setUniqueIdSel];
+            setUniqueId(purchase, setUniqueIdSel, trackId);
         }
 
-        // 3. 配置 SSPurchase 各种免认证和后台状态
-        NSArray *boolPurchaseSelectors = @[
+        // 🎯 3. 强行激活所有旧版越过验证的后台标识
+        NSArray *purchaseBoolSels = @[
             OBF("7365744261636B67726F756E6450757263686173653A"), // setBackgroundPurchase:
             OBF("73657449676E6F726573466F7263656450617373776F72645265737472696374696F6E3A"), // setIgnoresForcedPasswordRestriction:
             OBF("73657450726561757468656E746963617465643A"), // setPreauthenticated:
             OBF("736574536B6970536F6674776172654163636F756E74507265666C696768743A"), // setSkipSoftwareAccountPreflight:
-            OBF("736574437265617465734A6F62733A") // setCreatesJobs:
+            OBF("736574437265617465734A6F62733A"), // setCreatesJobs:
+            OBF("73657443726561746573446F776E6C6F6164733A") // setCreatesDownloads:
         ];
-        for (NSString *selStr in boolPurchaseSelectors) {
+        for (NSString *selStr in purchaseBoolSels) {
             SEL s = NSSelectorFromString(selStr);
             if ([purchase respondsToSelector:s]) {
                 BOOL val = YES;
                 NSMethodSignature *sig = [purchase methodSignatureForSelector:s];
                 NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-                [inv setTarget:purchase]; [inv setSelector:s]; [inv setArgument:&val atIndex:2]; [inv invoke];
+                [inv setTarget:purchase]; 
+                [inv setSelector:s]; 
+                [inv setArgument:&val atIndex:2]; 
+                [inv invoke];
             }
         }
 
         id request = [SSPurchaseRequestClass alloc];
         SEL initSel = NSSelectorFromString(OBF("696E6974576974685075726368617365733A")); // initWithPurchases:
-        NSArray *purchases = @[purchase];
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-        request = [request performSelector:initSel withObject:purchases];
+        request = [request performSelector:initSel withObject:@[purchase]];
 #pragma clang diagnostic pop
 
-        // 4. 配置 SSPurchaseRequest 使其静默且跳过弹窗验证
+        // 🎯 4. 初始化 SSPurchaseRequest，并设置相关的 Boolean，允许它交接给 itunesstored
         SEL setBgReqSel = NSSelectorFromString(OBF("7365744261636B67726F756E64526571756573743A")); // setBackgroundRequest:
         if ([request respondsToSelector:setBgReqSel]) {
             BOOL val = YES;
             NSMethodSignature *sig = [request methodSignatureForSelector:setBgReqSel];
             NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-            [inv setTarget:request]; [inv setSelector:setBgReqSel]; [inv setArgument:&val atIndex:2]; [inv invoke];
+            [inv setTarget:request]; 
+            [inv setSelector:setBgReqSel]; 
+            [inv setArgument:&val atIndex:2]; 
+            [inv invoke];
         }
-
+        
         NSArray *falseRequestSelectors = @[
             OBF("7365744E6565647341757468656E7469636174696F6E3A"), // setNeedsAuthentication:
             OBF("73657453686F756C6456616C69646174655075726368617365733A") // setShouldValidatePurchases:
@@ -287,23 +293,34 @@
                 BOOL val = NO;
                 NSMethodSignature *sig = [request methodSignatureForSelector:s];
                 NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-                [inv setTarget:request]; [inv setSelector:s]; [inv setArgument:&val atIndex:2]; [inv invoke];
+                [inv setTarget:request]; 
+                [inv setSelector:s]; 
+                [inv setArgument:&val atIndex:2]; 
+                [inv invoke];
             }
         }
-        
-        // 5. 启动下载任务
-        SEL startSel = NSSelectorFromString(OBF("737461727457697468436F6D706C6574696F6E426C6F636B3A")); // startWithCompletionBlock:
-        if ([request respondsToSelector:startSel]) {
-            void (^completionBlock)(NSError*) = ^(NSError *error) {};
-            id copiedBlock = [completionBlock copy];
+
+        // 🎯 5. 使用安全的函数响应，将其推送到守护进程后台
+        SEL startBlockSel = NSSelectorFromString(OBF("737461727457697468436F6D706C6574696F6E426C6F636B3A")); // startWithCompletionBlock:
+        if ([request respondsToSelector:startBlockSel]) {
+            void (^compBlock)(NSError*) = ^(NSError *error) {};
+            id copiedBlock = [compBlock copy];
             
-            NSMethodSignature *sig = [request methodSignatureForSelector:startSel];
+            NSMethodSignature *sig = [request methodSignatureForSelector:startBlockSel];
             NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-            [inv setTarget:request]; 
-            [inv setSelector:startSel];
-            [inv setArgument:&copiedBlock atIndex:2]; 
+            [inv setTarget:request];
+            [inv setSelector:startBlockSel];
+            [inv setArgument:&copiedBlock atIndex:2];
             [inv retainArguments];
             [inv invoke];
+        } else {
+            SEL startSel = NSSelectorFromString(OBF("7374617274")); // start
+            if ([request respondsToSelector:startSel]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                [request performSelector:startSel];
+#pragma clang diagnostic pop
+            }
         }
     }
 }

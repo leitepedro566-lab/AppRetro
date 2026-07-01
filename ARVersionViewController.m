@@ -10,13 +10,26 @@
     return [super initWithStyle:style];
 }
 
+// 🎯 工具方法：复用全局圆角弹窗逻辑
+- (void)applyRoundedUIToAlert:(UIAlertController *)ac {
+    CGFloat radius = 25.0;
+    CACornerMask mask = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
+    ac.view.layer.cornerRadius = radius;
+    ac.view.layer.maskedCorners = mask;
+    ac.view.layer.masksToBounds = YES;
+    for (UIView *v in ac.view.subviews.firstObject.subviews) {
+        v.layer.cornerRadius = radius;
+        v.layer.maskedCorners = mask;
+        v.layer.masksToBounds = YES;
+    }
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
     
     self.title = [NSString stringWithFormat:OBF("254020E9998DE7BAA72FE58D87E7BAA7"), self.appName]; 
     self.tableView.separatorColor = [UIColor clearColor];
     
-    // 🎯 修复顶栏不贴合屏幕顶部的问题：针对当前压栈的子页面，确保导航栏底层背景视图底部圆角正确显示
     dispatch_async(dispatch_get_main_queue(), ^{
         UIView *barBg = self.navigationController.navigationBar.subviews.firstObject;
         if (barBg) {
@@ -25,6 +38,85 @@
             barBg.layer.masksToBounds = YES;
         }
     });
+    
+    // 🎯 在右上角添加“自定义”按钮
+    UIBarButtonItem *customItem = [[UIBarButtonItem alloc] initWithTitle:OBF("E887AAE5AE9A") style:UIBarButtonItemStylePlain target:self action:@selector(inputCustomVersion)];
+    self.navigationItem.rightBarButtonItem = customItem;
+    
+    // 🎯 直接在页面加载完毕后开始请求网络，失败也不会强制退出该页面
+    [self fetchVersionData];
+}
+
+- (void)fetchVersionData {
+    UIAlertController *loading = [UIAlertController alertControllerWithTitle:OBF("E7A88DE5908E") message:OBF("E88EB7E58F96E78988E69CACE58897E8A1A82E2E2E") preferredStyle:UIAlertControllerStyleAlert]; // 稍候, 获取版本列表...
+    [self applyRoundedUIToAlert:loading];
+    [self presentViewController:loading animated:YES completion:nil];
+    
+    [[ARDowngradeManager sharedManager] fetchTrackIDForBundleID:self.bundleID completion:^(long long trackId, NSError *error) {
+        if (error || trackId == 0) {
+            [loading dismissViewControllerAnimated:YES completion:^{
+                UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:OBF("E5A4B1E8B4A5") message:error.localizedDescription preferredStyle:UIAlertControllerStyleAlert];
+                [self applyRoundedUIToAlert:errAlert];
+                [errAlert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:nil]];
+                [self presentViewController:errAlert animated:YES completion:nil];
+            }];
+            return;
+        }
+        
+        self.trackID = trackId;
+        
+        [[ARDowngradeManager sharedManager] fetchVersionsForTrackID:trackId completion:^(NSArray *versionsArr, NSError *error) {
+            [loading dismissViewControllerAnimated:YES completion:^{
+                if (error) {
+                    UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:OBF("E5A4B1E8B4A5") message:error.localizedDescription preferredStyle:UIAlertControllerStyleAlert];
+                    [self applyRoundedUIToAlert:errAlert];
+                    [errAlert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:nil]];
+                    [self presentViewController:errAlert animated:YES completion:nil];
+                    return;
+                }
+                
+                self.versions = [versionsArr sortedArrayUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:OBF("72656C656173655F64617465") ascending:NO]]]; 
+                [self.tableView reloadData];
+            }];
+        }];
+    }];
+}
+
+// 🎯 自定义版本入口
+- (void)inputCustomVersion {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:OBF("E887AAE5AE9A") message:OBF("E8BE93E585A5E78988E69CACE58FB7") preferredStyle:UIAlertControllerStyleAlert]; // 自定义, 输入版本号
+    [self applyRoundedUIToAlert:alert];
+    
+    [alert addTextFieldWithConfigurationHandler:^(UITextField * _Nonnull textField) {
+        textField.keyboardType = UIKeyboardTypeNumberPad;
+    }];
+    
+    [alert addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]]; // 取消
+    
+    [alert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE8AEA4") style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) { // 确认
+        NSString *input = alert.textFields.firstObject.text;
+        long long vId = [input longLongValue];
+        
+        if (vId > 0) {
+            if (self.trackID == 0) {
+                UIAlertController *err = [UIAlertController alertControllerWithTitle:OBF("E5A4B1E8B4A5") message:OBF("E69CAAE689BEE588B0E5BA94E794A8") preferredStyle:UIAlertControllerStyleAlert];
+                [self applyRoundedUIToAlert:err];
+                [err addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:nil]];
+                [self presentViewController:err animated:YES completion:nil];
+                return;
+            }
+            
+            [[ARDowngradeManager sharedManager] verifyOwnershipForBundleID:self.bundleID appPath:self.appPhysicalPath completion:^(BOOL isMatch, NSString *purchaser, NSString *active, NSArray *allAccounts) {
+                if (isMatch) {
+                    [self executeDowngradeProcessWithVersionStr:input versionID:vId];
+                } else {
+                    [self handleOwnershipMismatchWithPurchaser:purchaser active:active allAccounts:allAccounts versionStr:input versionID:vId indexPath:nil];
+                }
+            }];
+        }
+    }]];
+    
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView { 
@@ -85,84 +177,67 @@
     long long vId = [ver[OBF("65787465726E616C5F6964656E746966696572")] longLongValue]; 
     NSString *verStr = ver[OBF("62756E646C655F76657273696F6E")];
     
-    void (^applyRoundedUI)(UIAlertController *) = ^(UIAlertController *ac) {
-        CGFloat radius = 25.0;
-        CACornerMask mask = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
-        ac.view.layer.cornerRadius = radius;
-        ac.view.layer.maskedCorners = mask;
-        ac.view.layer.masksToBounds = YES;
-        for (UIView *v in ac.view.subviews.firstObject.subviews) {
-            v.layer.cornerRadius = radius;
-            v.layer.maskedCorners = mask;
-            v.layer.masksToBounds = YES;
-        }
-    };
-
     [[ARDowngradeManager sharedManager] verifyOwnershipForBundleID:self.bundleID appPath:self.appPhysicalPath completion:^(BOOL isMatch, NSString *purchaser, NSString *active, NSArray *allAccounts) {
         if (isMatch) {
             [self executeDowngradeProcessWithVersionStr:verStr versionID:vId];
         } else {
-            NSString *mismatchTitle = OBF("E8B4A6E58FB7E4B88DE58CB9E9858D"); 
-            NSString *purchaserText = OBF("E8B4ADE4B9B0E8B4A6E58FB7EFBC9A"); 
-            NSString *activeText = OBF("E5BD93E5898DE8B4A6E58FB7EFBC9A"); 
-            
-            NSString *msg = [NSString stringWithFormat:@"%@\n\n%@ %@\n%@ %@", mismatchTitle, purchaserText, purchaser ?: @"-", activeText, active ?: @"-"];
-            UIAlertController *mismatchAlert = [UIAlertController alertControllerWithTitle:OBF("E9AA8CE8AF81E5A4B1E8B4A5") message:msg preferredStyle:UIAlertControllerStyleAlert]; 
-            applyRoundedUI(mismatchAlert);
-            
-            [mismatchAlert addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]]; 
-            [mismatchAlert addAction:[UIAlertAction actionWithTitle:OBF("E58887E68DA2E8B4A6E58FB7") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { 
-                
-                UIAlertController *switchSheet = [UIAlertController alertControllerWithTitle:OBF("E98089E68B9CE8B4A6E58FB7") message:purchaser preferredStyle:UIAlertControllerStyleActionSheet]; 
-                applyRoundedUI(switchSheet);
-                
-                for (NSString *accName in allAccounts) {
-                    NSString *btnTitle = accName;
-                    if ([accName caseInsensitiveCompare:purchaser] == NSOrderedSame) {
-                        btnTitle = [NSString stringWithFormat:OBF("2A20E58887E68DA2E588B03A202540"), accName]; 
-                    }
-                    [switchSheet addAction:[UIAlertAction actionWithTitle:btnTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction *act) {
-                        
-                        UIAlertController *switchingAlert = [UIAlertController alertControllerWithTitle:OBF("E58887E68DA2E4B8ADEFBC8CE7A88DE5908E2E2E2E") message:nil preferredStyle:UIAlertControllerStyleAlert];
-                        applyRoundedUI(switchingAlert);
-                        [self presentViewController:switchingAlert animated:YES completion:nil];
-
-                        [[ARDowngradeManager sharedManager] executeAccountSwitchToName:accName];
-                        
-                        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                            [switchingAlert dismissViewControllerAnimated:YES completion:^{
-                                [self tableView:self.tableView didSelectRowAtIndexPath:indexPath];
-                            }];
-                        });
-                    }]];
-                }
-                [switchSheet addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]];
-                [self presentViewController:switchSheet animated:YES completion:nil];
-            }]];
-            
-            [self presentViewController:mismatchAlert animated:YES completion:nil];
+            [self handleOwnershipMismatchWithPurchaser:purchaser active:active allAccounts:allAccounts versionStr:verStr versionID:vId indexPath:indexPath];
         }
     }];
+}
+
+// 🎯 工具方法：复用账号不匹配时的极简换号与重试逻辑
+- (void)handleOwnershipMismatchWithPurchaser:(NSString *)purchaser active:(NSString *)active allAccounts:(NSArray *)allAccounts versionStr:(NSString *)verStr versionID:(long long)vId indexPath:(NSIndexPath *)indexPath {
+    NSString *mismatchTitle = OBF("E8B4A6E58FB7E4B88DE58CB9E9858D"); 
+    NSString *purchaserText = OBF("E8B4ADE4B9B0E8B4A6E58FB7EFBC9A"); 
+    NSString *activeText = OBF("E5BD93E5898DE8B4A6E58FB7EFBC9A"); 
+    
+    NSString *msg = [NSString stringWithFormat:@"%@\n\n%@ %@\n%@ %@", mismatchTitle, purchaserText, purchaser ?: @"-", activeText, active ?: @"-"];
+    UIAlertController *mismatchAlert = [UIAlertController alertControllerWithTitle:OBF("E9AA8CE8AF81E5A4B1E8B4A5") message:msg preferredStyle:UIAlertControllerStyleAlert]; 
+    [self applyRoundedUIToAlert:mismatchAlert];
+    
+    [mismatchAlert addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]]; 
+    [mismatchAlert addAction:[UIAlertAction actionWithTitle:OBF("E58887E68DA2E8B4A6E58FB7") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { 
+        
+        UIAlertController *switchSheet = [UIAlertController alertControllerWithTitle:OBF("E98089E68B9CE8B4A6E58FB7") message:purchaser preferredStyle:UIAlertControllerStyleActionSheet]; 
+        [self applyRoundedUIToAlert:switchSheet];
+        
+        for (NSString *accName in allAccounts) {
+            NSString *btnTitle = accName;
+            if ([accName caseInsensitiveCompare:purchaser] == NSOrderedSame) {
+                btnTitle = [NSString stringWithFormat:OBF("2A20E58887E68DA2E588B03A202540"), accName]; 
+            }
+            [switchSheet addAction:[UIAlertAction actionWithTitle:btnTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction *act) {
+                
+                UIAlertController *switchingAlert = [UIAlertController alertControllerWithTitle:OBF("E58887E68DA2E4B8ADEFBC8CE7A88DE5908E2E2E2E") message:nil preferredStyle:UIAlertControllerStyleAlert]; // 切换中，稍候...
+                [self applyRoundedUIToAlert:switchingAlert];
+                [self presentViewController:switchingAlert animated:YES completion:nil];
+
+                [[ARDowngradeManager sharedManager] executeAccountSwitchToName:accName];
+                
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    [switchingAlert dismissViewControllerAnimated:YES completion:^{
+                        if (indexPath) {
+                            [self tableView:self.tableView didSelectRowAtIndexPath:indexPath];
+                        } else {
+                            [self executeDowngradeProcessWithVersionStr:verStr versionID:vId];
+                        }
+                    }];
+                });
+            }]];
+        }
+        [switchSheet addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]];
+        [self presentViewController:switchSheet animated:YES completion:nil];
+    }]];
+    
+    [self presentViewController:mismatchAlert animated:YES completion:nil];
 }
 
 - (void)executeDowngradeProcessWithVersionStr:(NSString *)verStr versionID:(long long)vId {
     NSString *msg = [NSString stringWithFormat:OBF("2540E7A1AEE8AEA4"), verStr];
     
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:OBF("E7A1AEE8AEA4") message:msg preferredStyle:UIAlertControllerStyleAlert]; 
-    
-    void (^applyRoundedUI)(UIAlertController *) = ^(UIAlertController *ac) {
-        CGFloat radius = 25.0;
-        CACornerMask mask = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
-        ac.view.layer.cornerRadius = radius;
-        ac.view.layer.maskedCorners = mask;
-        ac.view.layer.masksToBounds = YES;
-        for (UIView *v in ac.view.subviews.firstObject.subviews) {
-            v.layer.cornerRadius = radius;
-            v.layer.maskedCorners = mask;
-            v.layer.masksToBounds = YES;
-        }
-    };
-    applyRoundedUI(alert);
+    [self applyRoundedUIToAlert:alert];
     
     [alert addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]]; 
     

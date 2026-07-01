@@ -192,7 +192,10 @@
 
     NSString *adamId = [NSString stringWithFormat:@"%lld", trackId];
     NSString *appExtVrsId = [NSString stringWithFormat:@"%lld", versionId];
-    NSString *offerString = [NSString stringWithFormat:@"productType=C&price=0&salableAdamId=%@&pricingParameters=pricingParameter&appExtVrsId=%@&clientBuyId=1&installed=0&trolled=1", adamId, appExtVrsId];
+    
+    // 🎯 核心防弹窗注入：加入 hasAskedToDownloadPreviousVersion=true，直接欺骗服务器绕过 iOS 版本不匹配的提示！
+    // 原始字符串: productType=C&price=0&salableAdamId=%@&pricingParameters=pricingParameter&appExtVrsId=%@&hasAskedToDownloadPreviousVersion=true&clientBuyId=1&installed=0&trolled=1
+    NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D25402668617341736B6564546F446F776E6C6F616450726576696F757356657273696F6E3D7472756526636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
 
     Class ASDPurchaseClass = NSClassFromString(OBF("4153445075726368617365"));
     Class ASDPurchaseManagerClass = NSClassFromString(OBF("41534450757263686173654D616E61676572"));
@@ -202,8 +205,9 @@
         [purchase setValue:@(trackId) forKey:OBF("6974656D4944")]; 
         [purchase setValue:bundleID forKey:OBF("62756E646C654944")]; 
         [purchase setValue:offerString forKey:OBF("627579506172616D6574657273")]; 
-        [purchase setValue:@(YES) forKey:OBF("6973557064617465")]; 
-        [purchase setValue:@(NO) forKey:OBF("69734261636B67726F756E64557064617465")]; 
+        
+        // 🎯 核心防弹窗注入二：坚决【不能】设置 isUpdate = YES！否则一定会触发强制验证接口 updateProduct 被拒绝！
+        // 只需设置为重下载即可触发 buyProduct 绕过限制。
         [purchase setValue:@(YES) forKey:OBF("69735265646F776E6C6F6164")]; 
         [purchase setValue:@(YES) forKey:OBF("637265617465734A6F6273")]; 
         

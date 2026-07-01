@@ -193,9 +193,8 @@
     NSString *adamId = [NSString stringWithFormat:@"%lld", trackId];
     NSString *appExtVrsId = [NSString stringWithFormat:@"%lld", versionId];
     
-    // 🎯 核心防弹窗注入：加入 hasAskedToDownloadPreviousVersion=true，直接欺骗服务器绕过 iOS 版本不匹配的提示！
-    // 原始字符串: productType=C&price=0&salableAdamId=%@&pricingParameters=pricingParameter&appExtVrsId=%@&hasAskedToDownloadPreviousVersion=true&clientBuyId=1&installed=0&trolled=1
-    NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D25402668617341736B6564546F446F776E6C6F616450726576696F757356657273696F6E3D7472756526636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
+    // 🎯 防护层 1：附加 isRedownload=true 与 hasAskedToDownloadPreviousVersion=true，强制绕过苹果服务器对高版本 iOS (如 iOS 18) 的设备拦截检查
+    NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D25402668617341736B6564546F446F776E6C6F616450726576696F757356657273696F6E3D7472756526636C69656E7442757949643D312669735265646F776E6C6F61643D7472756526696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
 
     Class ASDPurchaseClass = NSClassFromString(OBF("4153445075726368617365"));
     Class ASDPurchaseManagerClass = NSClassFromString(OBF("41534450757263686173654D616E61676572"));
@@ -206,11 +205,28 @@
         [purchase setValue:bundleID forKey:OBF("62756E646C654944")]; 
         [purchase setValue:offerString forKey:OBF("627579506172616D6574657273")]; 
         
-        // 🎯 核心防弹窗注入二：坚决【不能】设置 isUpdate = YES！否则一定会触发强制验证接口 updateProduct 被拒绝！
-        // 只需设置为重下载即可触发 buyProduct 绕过限制。
-        [purchase setValue:@(YES) forKey:OBF("69735265646F776E6C6F6164")]; 
-        [purchase setValue:@(YES) forKey:OBF("637265617465734A6F6273")]; 
+        [purchase setValue:@(YES) forKey:OBF("69735265646F776E6C6F6164")]; // isRedownload = YES
+        [purchase setValue:@(YES) forKey:OBF("637265617465734A6F6273")]; // createsJobs = YES
+        [purchase setValue:@(NO) forKey:OBF("6973557064617465")]; // isUpdate = NO (关键：如果是 YES 必然触发 iOS18 限制拦截)
         
+        // 🎯 防护层 2：提取并注入系统当前免密 DSID，彻底绕过底层对密码和 FaceID 的弹窗验证要求
+        void *ssHandle = dlopen([OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F726553657276696365732E6672616D65776F726B2F53746F72655365727669636573") UTF8String], RTLD_LAZY);
+        if (ssHandle) {
+            Class SSAccountStoreClass = NSClassFromString(OBF("53534163636F756E7453746F7265")); 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            id store = [SSAccountStoreClass performSelector:NSSelectorFromString(OBF("64656661756C7453746F7265"))]; 
+            id activeAccount = [store performSelector:NSSelectorFromString(OBF("6163746976654163636F756E74"))]; 
+            if (activeAccount) {
+                NSNumber *dsid = [activeAccount performSelector:NSSelectorFromString(OBF("756E697175654964656E746966696572"))]; 
+                if (dsid) {
+                    // 将 DSID 强力绑定到 ASDPurchase.accountIdentifier 上，向系统声明这是受信任的免密续期下载
+                    [purchase setValue:dsid forKey:OBF("6163636F756E744964656E746966696572")]; 
+                }
+            }
+#pragma clang diagnostic pop
+        }
+
         SEL dispSel = NSSelectorFromString(OBF("736574446973706C6179734F6E4C6F636B53637265656E3A"));
         if ([purchase respondsToSelector:dispSel]) {
             BOOL val = YES;

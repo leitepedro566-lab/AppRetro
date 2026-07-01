@@ -36,6 +36,16 @@
     UIBarButtonItem *tgItem = [[UIBarButtonItem alloc] initWithTitle:OBF("5447E9A291E98193") style:UIBarButtonItemStylePlain target:self action:@selector(arOpenTGChannel)];
     self.navigationItem.rightBarButtonItem = tgItem;
 
+    // 🎯 修复顶栏不贴合屏幕顶部的问题：将圆角仅作用于导航栏底层背景视图的下方两角，绝不影响状态栏安全区
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIView *barBg = self.navigationController.navigationBar.subviews.firstObject;
+        if (barBg) {
+            barBg.layer.cornerRadius = 25.0;
+            barBg.layer.maskedCorners = kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
+            barBg.layer.masksToBounds = YES;
+        }
+    });
+
     [self loadInstalledApps];
 }
 
@@ -66,8 +76,19 @@
 #pragma clang diagnostic pop
         if (bundleURL) {
             NSString *appParentDir = [bundleURL.path stringByDeletingLastPathComponent];
+            
             NSString *trollStorePath = [appParentDir stringByAppendingPathComponent:OBF("5F54726F6C6C53746F7265")];
             if ([[NSFileManager defaultManager] fileExistsAtPath:trollStorePath]) continue; 
+            
+            // 🎯 新增拦截：强校验必须同时包含 iTunesMetadata.plist 和 BundleMetadata.plist，否则过滤
+            NSString *itunesPath = [appParentDir stringByAppendingPathComponent:OBF("6954756E65734D657461646174612E706C697374")];
+            NSString *bundleMetaPath = [appParentDir stringByAppendingPathComponent:OBF("42756E646C654D657461646174612E706C697374")]; // "BundleMetadata.plist"
+            if (![[NSFileManager defaultManager] fileExistsAtPath:itunesPath] || ![[NSFileManager defaultManager] fileExistsAtPath:bundleMetaPath]) {
+                continue;
+            }
+            
+        } else {
+            continue;
         }
         [validApps addObject:proxy];
     }
@@ -75,10 +96,20 @@
     [validApps sortUsingComparator:^NSComparisonResult(id a, id b) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        // 🎯 获取桌面名字的核心改动：最高优先级使用 localizedShortName
+        SEL shortNameSel = NSSelectorFromString(OBF("6C6F63616C697A656453686F72744E616D65"));
         SEL nameSel = NSSelectorFromString(OBF("6C6F63616C697A65644E616D65")); 
         SEL bundleSel = NSSelectorFromString(OBF("62756E646C654964656E746966696572"));
-        NSString *nameA = [a respondsToSelector:nameSel] ? [a performSelector:nameSel] : [a performSelector:bundleSel];
-        NSString *nameB = [b respondsToSelector:nameSel] ? [b performSelector:nameSel] : [b performSelector:bundleSel];
+        
+        NSString *nameA = nil;
+        if ([a respondsToSelector:shortNameSel]) nameA = [a performSelector:shortNameSel];
+        if (!nameA && [a respondsToSelector:nameSel]) nameA = [a performSelector:nameSel];
+        if (!nameA) nameA = [a performSelector:bundleSel];
+        
+        NSString *nameB = nil;
+        if ([b respondsToSelector:shortNameSel]) nameB = [b performSelector:shortNameSel];
+        if (!nameB && [b respondsToSelector:nameSel]) nameB = [b performSelector:nameSel];
+        if (!nameB) nameB = [b performSelector:bundleSel];
 #pragma clang diagnostic pop
         return [nameA localizedCaseInsensitiveCompare:nameB];
     }];
@@ -97,11 +128,17 @@
         for (id proxy in self.arAllApps) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            SEL shortNameSel = NSSelectorFromString(OBF("6C6F63616C697A656453686F72744E616D65"));
             SEL nameSel = NSSelectorFromString(OBF("6C6F63616C697A65644E616D65"));
             SEL bundleSel = NSSelectorFromString(OBF("62756E646C654964656E746966696572"));
+            
             NSString *bundleIdStr = [proxy performSelector:bundleSel];
-            NSString *name = [proxy respondsToSelector:nameSel] ? [proxy performSelector:nameSel] : bundleIdStr;
+            NSString *name = nil;
+            if ([proxy respondsToSelector:shortNameSel]) name = [proxy performSelector:shortNameSel];
+            if (!name && [proxy respondsToSelector:nameSel]) name = [proxy performSelector:nameSel];
+            if (!name) name = bundleIdStr;
 #pragma clang diagnostic pop
+            
             if ([name.lowercaseString containsString:searchText] || [bundleIdStr.lowercaseString containsString:searchText]) {
                 [results addObject:proxy];
             }
@@ -126,10 +163,15 @@
     id proxy = self.arFilteredApps[indexPath.section];
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+    SEL shortNameSel = NSSelectorFromString(OBF("6C6F63616C697A656453686F72744E616D65"));
     SEL nameSel = NSSelectorFromString(OBF("6C6F63616C697A65644E616D65"));
     SEL bundleSel = NSSelectorFromString(OBF("62756E646C654964656E746966696572"));
+    
     NSString *bundleIdStr = [proxy performSelector:bundleSel];
-    NSString *name = [proxy respondsToSelector:nameSel] ? [proxy performSelector:nameSel] : bundleIdStr;
+    NSString *name = nil;
+    if ([proxy respondsToSelector:shortNameSel]) name = [proxy performSelector:shortNameSel];
+    if (!name && [proxy respondsToSelector:nameSel]) name = [proxy performSelector:nameSel];
+    if (!name) name = bundleIdStr;
     
     NSString *version = OBF("2D"); 
     SEL versionSel = NSSelectorFromString(OBF("73686F727456657273696F6E537472696E67")); 
@@ -191,10 +233,15 @@
     
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-    SEL bundleSel = NSSelectorFromString(OBF("62756E646C654964656E746966696572"));
-    NSString *bundleIdStr = [proxy performSelector:bundleSel];
+    SEL shortNameSel = NSSelectorFromString(OBF("6C6F63616C697A656453686F72744E616D65"));
     SEL nameSel = NSSelectorFromString(OBF("6C6F63616C697A65644E616D65"));
-    NSString *name = [proxy respondsToSelector:nameSel] ? [proxy performSelector:nameSel] : bundleIdStr;
+    SEL bundleSel = NSSelectorFromString(OBF("62756E646C654964656E746966696572"));
+    
+    NSString *bundleIdStr = [proxy performSelector:bundleSel];
+    NSString *name = nil;
+    if ([proxy respondsToSelector:shortNameSel]) name = [proxy performSelector:shortNameSel];
+    if (!name && [proxy respondsToSelector:nameSel]) name = [proxy performSelector:nameSel];
+    if (!name) name = bundleIdStr;
     
     NSURL *bundleURL = [proxy respondsToSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] ? [proxy performSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] : nil;
     NSString *fullAppPath = bundleURL.path;
@@ -213,7 +260,6 @@
         }
     };
 
-    // 🎯 提示文案变更为：“稍后”、“获取版本列表...”
     UIAlertController *loading = [UIAlertController alertControllerWithTitle:OBF("E7A88DE5908E") message:OBF("E88EB7E58F96E78988E69CACE58897E8A1A82E2E2E") preferredStyle:UIAlertControllerStyleAlert];
     applyRoundedUI(loading);
     [self presentViewController:loading animated:YES completion:nil];

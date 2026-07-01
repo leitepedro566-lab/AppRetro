@@ -13,7 +13,8 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    self.title = [NSString stringWithFormat:OBF("254020446F776E"), self.appName]; 
+    // 🎯 顶部标题文案变更为：“xxx 降级/升级”
+    self.title = [NSString stringWithFormat:OBF("254020E9998DE7BAA72FE58D87E7BAA7"), self.appName]; 
     self.tableView.separatorColor = [UIColor clearColor];
 }
 
@@ -92,7 +93,6 @@
         if (isMatch) {
             [self executeDowngradeProcessWithVersionStr:verStr versionID:vId];
         } else {
-            // 🎯 修复了缺失的 "配" 字：“账号不匹配”
             NSString *mismatchTitle = OBF("E8B4A6E58FB7E4B88DE58CB9E9858D"); 
             NSString *purchaserText = OBF("E8B4ADE4B9B0E8B4A6E58FB7EFBC9A"); 
             NSString *activeText = OBF("E5BD93E5898DE8B4A6E58FB7EFBC9A"); 
@@ -114,8 +114,8 @@
                     }
                     [switchSheet addAction:[UIAlertAction actionWithTitle:btnTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction *act) {
                         
-                        // 🎯 切换文案调整为："切换中，稍候..."
-                        UIAlertController *switchingAlert = [UIAlertController alertControllerWithTitle:OBF("E58887E68DA2E4B8ADEFBC8CE7A88DE580992E2E2E") message:nil preferredStyle:UIAlertControllerStyleAlert];
+                        // 🎯 切换文案调整为："切换中，稍后..."
+                        UIAlertController *switchingAlert = [UIAlertController alertControllerWithTitle:OBF("E58887E68DA2E4B8ADEFBC8CE7A88DE5908E2E2E2E") message:nil preferredStyle:UIAlertControllerStyleAlert];
                         applyRoundedUI(switchingAlert);
                         [self presentViewController:switchingAlert animated:YES completion:nil];
 
@@ -138,10 +138,8 @@
 }
 
 - (void)executeDowngradeProcessWithVersionStr:(NSString *)verStr versionID:(long long)vId {
-    // 🎯 弹窗文案精简调整为 “x.x.x确认” 格式
     NSString *msg = [NSString stringWithFormat:OBF("2540E7A1AEE8AEA4"), verStr];
     
-    // 🎯 弹窗标题统一调整为 “确认”
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:OBF("E7A1AEE8AEA4") message:msg preferredStyle:UIAlertControllerStyleAlert]; 
     
     void (^applyRoundedUI)(UIAlertController *) = ^(UIAlertController *ac) {
@@ -160,7 +158,6 @@
     
     [alert addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]]; 
     
-    // 🎯 降级按钮也统一调整为 “确认”
     [alert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE8AEA4") style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) { 
         
         [[ARDowngradeManager sharedManager] installAppWithTrackID:self.trackID versionID:vId bundleID:self.bundleID];

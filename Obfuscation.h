@@ -10,7 +10,7 @@
 #define ARRootViewController    OO000OO0
 #define ARVersionViewController O0O0O00O
 
-// 2. 核心内部公开/私有属性变态致盲
+// 2. 核心内部公开/私有属性全量变态致盲
 #define bundleID                m_O0O0l1
 #define appName                 m_l1l1O0
 #define trackID                 m_1l1lO0
@@ -20,13 +20,19 @@
 #define arSearchController      m_l1I1I1
 #define loadInstalledApps       m_Ill111
 #define arOpenTGChannel         m_lI1l11
+#define appPhysicalPath         m_0O001l
+
+// 3. 所有核心方法调用重度致盲 (连方法签名也不放过)
+#define sharedManager           m_l111lI
 #define fetchTrackIDForBundleID m_lIl1I0
 #define fetchVersionsForTrackID m_l11I1l
 #define installAppWithTrackID   m_l1l11l
-#define sharedManager           m_l111lI
-#define appPhysicalPath         m_0O001l
+#define verifyOwnershipForBundleID m_O10O0l
+#define executeAccountSwitchToName m_lO100l
+#define fallbackInstallWithTrackID m_l0O10l
+#define executeDowngradeProcessWithVersionStr m_01lO0O
 
-// 3. 顶级内联安全脱壳机 + 干扰静态分析的花指令
+// 4. 顶级内联安全脱壳机 + 干扰静态分析的花指令
 static __attribute__((always_inline)) inline NSString * _l1ll1l1O_(const char *hex) {
     int len = (int)strlen(hex);
     

@@ -2,6 +2,11 @@
 #import "ARDowngradeManager.h"
 #import <dlfcn.h>
 
+@interface ARDowngradeManager ()
+// 私有方法声明：全区多国递归检索 API
+- (void)recursiveFetchTrackID:(NSString *)bundleID codes:(NSArray *)codes index:(NSInteger)index completion:(void(^)(long long trackId, NSError *error))completion;
+@end
+
 @implementation ARDowngradeManager
 
 + (instancetype)sharedManager {
@@ -11,21 +16,39 @@
     return instance;
 }
 
+// 🎯 全新升级：全球 35 个主要国家/地区商店轮询查询，保证冷门和外区应用也能查到版本
 - (void)fetchTrackIDForBundleID:(NSString *)bundleID completion:(void(^)(long long, NSError *))completion {
-    NSString *urlFormat = OBF("68747470733A2F2F6974756E65732E6170706C652E636F6D2F6C6F6F6B75703F62756E646C6549643D2540266C696D69743D31266D656469613D736F66747761726526636F756E7472793D636E");
-    NSString *urlString = [NSString stringWithFormat:urlFormat, bundleID];
+    // "cn,us,gb,jp,hk,tw,mo,kr,au,ca,de,fr,it,es,sg,ae,ar,br,dk,fi,id,in,my,nl,no,nz,ph,pt,ru,sa,se,th,tr,vn,za" (Hex Encoded)
+    NSString *countriesStr = OBF("636E2C75732C67622C6A702C686B2C74772C6D6F2C6B722C61752C63612C64652C66722C69742C65732C73672C61652C61722C62722C646B2C66692C69642C696E2C6D792C6E6C2C6E6F2C6E7A2C70682C70742C72752C73612C73652C74682C74722C766E2C7A61");
+    NSArray *codes = [countriesStr componentsSeparatedByString:OBF("2C")];
+    [self recursiveFetchTrackID:bundleID codes:codes index:0 completion:completion];
+}
+
+- (void)recursiveFetchTrackID:(NSString *)bundleID codes:(NSArray *)codes index:(NSInteger)index completion:(void(^)(long long, NSError *))completion {
+    if (index >= codes.count) {
+        // "已尝试所有地区，依然未找到该应用"
+        if (completion) completion(0, [NSError errorWithDomain:OBF("417070526574726F") code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E5B7B2E5B09DE8AF95E68980E69C89E59CB0E58CBAEFBC8CE4BE9DE784B6E69CAAE689BEE588B0E8AFA5E5BA94E794A8")}]);
+        return;
+    }
+    
+    NSString *country = codes[index];
+    // "https://itunes.apple.com/lookup?bundleId=%@&limit=1&media=software&country=%@"
+    NSString *urlFormat = OBF("68747470733A2F2F6974756E65732E6170706C652E636F6D2F6C6F6F6B75703F62756E646C6549643D2540266C696D69743D31266D656469613D736F66747761726526636F756E7472793D2540");
+    NSString *urlString = [NSString stringWithFormat:urlFormat, bundleID, country];
     
     NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:urlString] completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (error || !data) { if (completion) completion(0, error); return; }
-            NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-            NSArray *results = json[OBF("726573756C7473")]; 
-            if ([results isKindOfClass:[NSArray class]] && results.count > 0) {
-                if (completion) completion([results.firstObject[OBF("747261636B4964")] longLongValue], nil); 
-            } else {
-                if (completion) completion(0, [NSError errorWithDomain:OBF("526574726F") code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E69CAAE7B9A2E68EB7E588B0E5BA94E794A820547261636B204944")}]);
-            }
-        });
+        if (error || !data) {
+            dispatch_async(dispatch_get_main_queue(), ^{ [self recursiveFetchTrackID:bundleID codes:codes index:index+1 completion:completion]; });
+            return;
+        }
+        NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        NSArray *results = json[OBF("726573756C7473")]; // "results"
+        if ([results isKindOfClass:[NSArray class]] && results.count > 0) {
+            long long tid = [results.firstObject[OBF("747261636B4964")] longLongValue]; // "trackId"
+            dispatch_async(dispatch_get_main_queue(), ^{ if (completion) completion(tid, nil); });
+        } else {
+            dispatch_async(dispatch_get_main_queue(), ^{ [self recursiveFetchTrackID:bundleID codes:codes index:index+1 completion:completion]; });
+        }
     }];
     [task resume];
 }
@@ -41,7 +64,7 @@
             if ([versionsArr isKindOfClass:[NSArray class]] && versionsArr.count > 0) {
                  if (completion) completion(versionsArr, nil);
             } else {
-                if (completion) completion(nil, [NSError errorWithDomain:OBF("526574726F") code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E69CAAE7B9A2E68EB7E588B0E58E86E58FB2E78988E69CACE8AEB0E5BD95")}]);
+                if (completion) completion(nil, [NSError errorWithDomain:OBF("417070526574726F") code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E69CAAE7B9A2E68EB7E588B0E58E86E58FB2E78988E69CACE8AEB0E5BD95")}]);
             }
         });
     }];
@@ -185,7 +208,7 @@
     CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (__bridge CFStringRef)OBF("636F6D2E73746F726573776974636865722E6163636F756E74735F6368616E676564"), NULL, NULL, YES);
 }
 
-// 🎯 降级方案二 (兜底): StoreKitUI - 带有前端界面弹窗支持 (能接住因版本太老/太高被拦截引发的系统弹窗)
+// 🎯 降级方案二 (兜底): StoreKitUI - 带有前端界面弹窗支持
 - (void)fallbackInstallWithTrackID:(long long)trackId versionID:(long long)versionId {
     NSString *skuiPath = OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F72654B697455492E6672616D65776F726B2F53746F72654B69745549");
     void *handle = dlopen([skuiPath UTF8String], RTLD_LAZY);
@@ -246,12 +269,11 @@
     }
 }
 
-// 🎯 降级方案一 (首选): AppStoreDaemon - 优先走静默下载方式 (底层自动定性为无密码提示的系统更新 [UPD])
+// 🎯 降级方案一 (首选): AppStoreDaemon - 静默下载
 - (void)installAppWithTrackID:(long long)trackId versionID:(long long)versionId bundleID:(NSString *)bundleID {
     NSString *daemonPath = OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F41707053746F72654461656D6F6E2E6672616D65776F726B2F41707053746F72654461656D6F6E");
     void *handle = dlopen([daemonPath UTF8String], RTLD_LAZY);
     if (!handle) {
-        // 环境无私有库支持 Daemon (低版本或被拦截)，无缝回退兜底
         [self fallbackInstallWithTrackID:trackId versionID:versionId];
         return;
     }
@@ -259,7 +281,6 @@
     NSString *adamId = [NSString stringWithFormat:OBF("256C6C64"), trackId];
     NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), versionId];
     
-    // 参数配置
     NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
 
     Class ASDPurchaseClass = NSClassFromString(OBF("4153445075726368617365"));
@@ -271,7 +292,6 @@
         [purchase setValue:bundleID forKey:OBF("62756E646C654944")]; 
         [purchase setValue:offerString forKey:OBF("627579506172616D6574657273")]; 
         
-        // 【关键修复】原生 ASD 静默下载优先方式，必须设为更新模式，以此彻底跳过系统的购买指纹/密码弹窗
         [purchase setValue:@(YES) forKey:OBF("6973557064617465")]; 
         [purchase setValue:@(NO) forKey:OBF("69734261636B67726F756E64557064617465")]; 
         [purchase setValue:@(YES) forKey:OBF("69735265646F776E6C6F6164")]; 
@@ -301,8 +321,6 @@
             [inv setSelector:startSel]; 
             [inv setArgument:&purchase atIndex:2];
             
-            // 🎯 【智能回退闭环验证】如果静默购买中途抛出错误 (例如该应用下载需要高于当前系统版本)
-            // ASD 守护进程处理不了拦截提示，立刻自动无缝退回 StoreKitUI 进行前端真实降级提示弹窗！
             void (^handler)(id, NSError*) = ^(id result, NSError *error) {
                 if (error) {
                     dispatch_async(dispatch_get_main_queue(), ^{

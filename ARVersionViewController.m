@@ -50,33 +50,58 @@
 - (void)fetchVersionData {
     UIAlertController *loading = [UIAlertController alertControllerWithTitle:OBF("E7A88DE5908E") message:OBF("E88EB7E58F96E78988E69CACE58897E8A1A82E2E2E") preferredStyle:UIAlertControllerStyleAlert]; // 稍候, 获取版本列表...
     [self applyRoundedUIToAlert:loading];
-    [self presentViewController:loading animated:YES completion:nil];
     
-    [[ARDowngradeManager sharedManager] fetchTrackIDForBundleID:self.bundleID completion:^(long long trackId, NSError *error) {
-        if (error || trackId == 0) {
-            [loading dismissViewControllerAnimated:YES completion:^{
-                UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:OBF("E5A4B1E8B4A5") message:error.localizedDescription preferredStyle:UIAlertControllerStyleAlert];
-                [self applyRoundedUIToAlert:errAlert];
-                [errAlert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:nil]];
-                [self presentViewController:errAlert animated:YES completion:nil];
-            }];
+    // 🎯 核心修复：防止网速过快导致 dismiss 和 present 动画冲突，并在用户迅速回退页面时安全销毁
+    __weak typeof(self) weakSelf = self;
+    [self presentViewController:loading animated:YES completion:^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) {
+            [loading dismissViewControllerAnimated:NO completion:nil];
             return;
         }
         
-        self.trackID = trackId;
-        
-        [[ARDowngradeManager sharedManager] fetchVersionsForTrackID:trackId completion:^(NSArray *versionsArr, NSError *error) {
-            [loading dismissViewControllerAnimated:YES completion:^{
-                if (error) {
-                    UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:OBF("E5A4B1E8B4A5") message:error.localizedDescription preferredStyle:UIAlertControllerStyleAlert];
-                    [self applyRoundedUIToAlert:errAlert];
-                    [errAlert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:nil]];
-                    [self presentViewController:errAlert animated:YES completion:nil];
-                    return;
-                }
-                
-                self.versions = [versionsArr sortedArrayUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:OBF("72656C656173655F64617465") ascending:NO]]]; 
-                [self.tableView reloadData];
+        [[ARDowngradeManager sharedManager] fetchTrackIDForBundleID:strongSelf.bundleID completion:^(long long trackId, NSError *error) {
+            __strong typeof(weakSelf) innerSelf1 = weakSelf;
+            if (!innerSelf1) {
+                dispatch_async(dispatch_get_main_queue(), ^{ [loading dismissViewControllerAnimated:NO completion:nil]; });
+                return;
+            }
+            
+            if (error || trackId == 0) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [loading dismissViewControllerAnimated:YES completion:^{
+                        __strong typeof(weakSelf) innerSelf2 = weakSelf;
+                        if (!innerSelf2) return;
+                        
+                        UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:OBF("E5A4B1E8B4A5") message:error.localizedDescription ?: OBF("E69CAAE689BEE588B0E5BA94E794A8") preferredStyle:UIAlertControllerStyleAlert];
+                        [innerSelf2 applyRoundedUIToAlert:errAlert];
+                        [errAlert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:nil]];
+                        [innerSelf2 presentViewController:errAlert animated:YES completion:nil];
+                    }];
+                });
+                return;
+            }
+            
+            innerSelf1.trackID = trackId;
+            
+            [[ARDowngradeManager sharedManager] fetchVersionsForTrackID:trackId completion:^(NSArray *versionsArr, NSError *error) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [loading dismissViewControllerAnimated:YES completion:^{
+                        __strong typeof(weakSelf) innerSelf3 = weakSelf;
+                        if (!innerSelf3) return;
+                        
+                        if (error) {
+                            UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:OBF("E5A4B1E8B4A5") message:error.localizedDescription preferredStyle:UIAlertControllerStyleAlert];
+                            [innerSelf3 applyRoundedUIToAlert:errAlert];
+                            [errAlert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:nil]];
+                            [innerSelf3 presentViewController:errAlert animated:YES completion:nil];
+                            return;
+                        }
+                        
+                        innerSelf3.versions = [versionsArr sortedArrayUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:OBF("72656C656173655F64617465") ascending:NO]]]; 
+                        [innerSelf3.tableView reloadData];
+                    }];
+                });
             }];
         }];
     }];

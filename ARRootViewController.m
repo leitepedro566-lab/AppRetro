@@ -36,7 +36,6 @@
     UIBarButtonItem *tgItem = [[UIBarButtonItem alloc] initWithTitle:OBF("5447E9A291E98193") style:UIBarButtonItemStylePlain target:self action:@selector(arOpenTGChannel)];
     self.navigationItem.rightBarButtonItem = tgItem;
 
-    // 🎯 修复顶栏不贴合屏幕顶部的问题：将圆角仅作用于导航栏底层背景视图的下方两角，绝不影响状态栏安全区
     dispatch_async(dispatch_get_main_queue(), ^{
         UIView *barBg = self.navigationController.navigationBar.subviews.firstObject;
         if (barBg) {
@@ -80,9 +79,8 @@
             NSString *trollStorePath = [appParentDir stringByAppendingPathComponent:OBF("5F54726F6C6C53746F7265")];
             if ([[NSFileManager defaultManager] fileExistsAtPath:trollStorePath]) continue; 
             
-            // 🎯 新增拦截：强校验必须同时包含 iTunesMetadata.plist 和 BundleMetadata.plist，否则过滤
             NSString *itunesPath = [appParentDir stringByAppendingPathComponent:OBF("6954756E65734D657461646174612E706C697374")];
-            NSString *bundleMetaPath = [appParentDir stringByAppendingPathComponent:OBF("42756E646C654D657461646174612E706C697374")]; // "BundleMetadata.plist"
+            NSString *bundleMetaPath = [appParentDir stringByAppendingPathComponent:OBF("42756E646C654D657461646174612E706C697374")]; 
             if (![[NSFileManager defaultManager] fileExistsAtPath:itunesPath] || ![[NSFileManager defaultManager] fileExistsAtPath:bundleMetaPath]) {
                 continue;
             }
@@ -96,19 +94,19 @@
     [validApps sortUsingComparator:^NSComparisonResult(id a, id b) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-        // 🎯 获取桌面名字的核心改动：最高优先级使用 localizedShortName
-        SEL shortNameSel = NSSelectorFromString(OBF("6C6F63616C697A656453686F72744E616D65"));
+        // 🎯 配合 Info.plist，优先获取绝对的 localizedName，系统会自动根据 AppRetro 的本地化属性返回中文
         SEL nameSel = NSSelectorFromString(OBF("6C6F63616C697A65644E616D65")); 
+        SEL shortNameSel = NSSelectorFromString(OBF("6C6F63616C697A656453686F72744E616D65"));
         SEL bundleSel = NSSelectorFromString(OBF("62756E646C654964656E746966696572"));
         
         NSString *nameA = nil;
-        if ([a respondsToSelector:shortNameSel]) nameA = [a performSelector:shortNameSel];
-        if (!nameA && [a respondsToSelector:nameSel]) nameA = [a performSelector:nameSel];
+        if ([a respondsToSelector:nameSel]) nameA = [a performSelector:nameSel];
+        if (!nameA && [a respondsToSelector:shortNameSel]) nameA = [a performSelector:shortNameSel];
         if (!nameA) nameA = [a performSelector:bundleSel];
         
         NSString *nameB = nil;
-        if ([b respondsToSelector:shortNameSel]) nameB = [b performSelector:shortNameSel];
-        if (!nameB && [b respondsToSelector:nameSel]) nameB = [b performSelector:nameSel];
+        if ([b respondsToSelector:nameSel]) nameB = [b performSelector:nameSel];
+        if (!nameB && [b respondsToSelector:shortNameSel]) nameB = [b performSelector:shortNameSel];
         if (!nameB) nameB = [b performSelector:bundleSel];
 #pragma clang diagnostic pop
         return [nameA localizedCaseInsensitiveCompare:nameB];
@@ -128,14 +126,14 @@
         for (id proxy in self.arAllApps) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-            SEL shortNameSel = NSSelectorFromString(OBF("6C6F63616C697A656453686F72744E616D65"));
             SEL nameSel = NSSelectorFromString(OBF("6C6F63616C697A65644E616D65"));
+            SEL shortNameSel = NSSelectorFromString(OBF("6C6F63616C697A656453686F72744E616D65"));
             SEL bundleSel = NSSelectorFromString(OBF("62756E646C654964656E746966696572"));
             
             NSString *bundleIdStr = [proxy performSelector:bundleSel];
             NSString *name = nil;
-            if ([proxy respondsToSelector:shortNameSel]) name = [proxy performSelector:shortNameSel];
-            if (!name && [proxy respondsToSelector:nameSel]) name = [proxy performSelector:nameSel];
+            if ([proxy respondsToSelector:nameSel]) name = [proxy performSelector:nameSel];
+            if (!name && [proxy respondsToSelector:shortNameSel]) name = [proxy performSelector:shortNameSel];
             if (!name) name = bundleIdStr;
 #pragma clang diagnostic pop
             
@@ -163,14 +161,14 @@
     id proxy = self.arFilteredApps[indexPath.section];
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-    SEL shortNameSel = NSSelectorFromString(OBF("6C6F63616C697A656453686F72744E616D65"));
     SEL nameSel = NSSelectorFromString(OBF("6C6F63616C697A65644E616D65"));
+    SEL shortNameSel = NSSelectorFromString(OBF("6C6F63616C697A656453686F72744E616D65"));
     SEL bundleSel = NSSelectorFromString(OBF("62756E646C654964656E746966696572"));
     
     NSString *bundleIdStr = [proxy performSelector:bundleSel];
     NSString *name = nil;
-    if ([proxy respondsToSelector:shortNameSel]) name = [proxy performSelector:shortNameSel];
-    if (!name && [proxy respondsToSelector:nameSel]) name = [proxy performSelector:nameSel];
+    if ([proxy respondsToSelector:nameSel]) name = [proxy performSelector:nameSel];
+    if (!name && [proxy respondsToSelector:shortNameSel]) name = [proxy performSelector:shortNameSel];
     if (!name) name = bundleIdStr;
     
     NSString *version = OBF("2D"); 
@@ -233,14 +231,14 @@
     
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-    SEL shortNameSel = NSSelectorFromString(OBF("6C6F63616C697A656453686F72744E616D65"));
     SEL nameSel = NSSelectorFromString(OBF("6C6F63616C697A65644E616D65"));
+    SEL shortNameSel = NSSelectorFromString(OBF("6C6F63616C697A656453686F72744E616D65"));
     SEL bundleSel = NSSelectorFromString(OBF("62756E646C654964656E746966696572"));
     
     NSString *bundleIdStr = [proxy performSelector:bundleSel];
     NSString *name = nil;
-    if ([proxy respondsToSelector:shortNameSel]) name = [proxy performSelector:shortNameSel];
-    if (!name && [proxy respondsToSelector:nameSel]) name = [proxy performSelector:nameSel];
+    if ([proxy respondsToSelector:nameSel]) name = [proxy performSelector:nameSel];
+    if (!name && [proxy respondsToSelector:shortNameSel]) name = [proxy performSelector:shortNameSel];
     if (!name) name = bundleIdStr;
     
     NSURL *bundleURL = [proxy respondsToSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] ? [proxy performSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] : nil;

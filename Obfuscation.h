@@ -4,13 +4,13 @@
 
 #import <Foundation/Foundation.h>
 
-// 1. 类名极致视觉致盲
+// 1. 类名极致视觉模糊
 #define ARAppDelegate           O0O00O0O
 #define ARDowngradeManager      O00OO00O
 #define ARRootViewController    OO000OO0
 #define ARVersionViewController O0O0O00O
 
-// 2. 核心属性与方法名致盲 (从符号表中彻底抹除特征)
+// 2. 核心内部公开/私有属性变态致盲
 #define bundleID                m_O0O0l1
 #define appName                 m_l1l1O0
 #define trackID                 m_1l1lO0
@@ -25,8 +25,8 @@
 #define installAppWithTrackID   m_l1l11l
 #define sharedManager           m_l111lI
 
-// 3. 终极内联解密器：强制内联消灭函数符号，彻底阻断交叉引用分析
-static __attribute__((always_inline)) inline NSString * _O0l1O0l1_(const char *hex) {
+// 3. 顶级内联安全脱壳机
+static __attribute__((always_inline)) inline NSString * _l1ll1l1O_(const char *hex) {
     int len = (int)strlen(hex);
     char *str = (char *)malloc(len / 2 + 1);
     for(int i = 0; i < len; i += 2) {
@@ -39,6 +39,6 @@ static __attribute__((always_inline)) inline NSString * _O0l1O0l1_(const char *h
     return res;
 }
 
-#define OBF(x) _O0l1O0l1_(x)
+#define OBF(x) _l1ll1l1O_(x)
 
 #endif /* Obfuscation_h */

@@ -88,15 +88,14 @@
         }
     };
 
-    // 🎯 修复动态调用脱钩导致直接绕过安全验证执行的核心 Bug，现改为显式调用
     [[ARDowngradeManager sharedManager] verifyOwnershipForBundleID:self.bundleID appPath:self.appPhysicalPath completion:^(BOOL isMatch, NSString *purchaser, NSString *active, NSArray *allAccounts) {
         if (isMatch) {
             [self executeDowngradeProcessWithVersionStr:verStr versionID:vId];
         } else {
-            // 🎯 彻底按照你的要求升级 UI：分别展示购买账号与当前账号，文本均做 Hex 加密
-            NSString *mismatchTitle = OBF("E8B4A6E58FB7E4B88DE58CB9"); // "账号不匹配"
-            NSString *purchaserText = OBF("E8B4ADE4B9B0E8B4A6E58FB7EFBC9A"); // "购买账号："
-            NSString *activeText = OBF("E5BD93E5898DE8B4A6E58FB7EFBC9A"); // "当前账号："
+            // 🎯 修复了缺失的 "配" 字：“账号不匹配”
+            NSString *mismatchTitle = OBF("E8B4A6E58FB7E4B88DE58CB9E9858D"); 
+            NSString *purchaserText = OBF("E8B4ADE4B9B0E8B4A6E58FB7EFBC9A"); 
+            NSString *activeText = OBF("E5BD93E5898DE8B4A6E58FB7EFBC9A"); 
             
             NSString *msg = [NSString stringWithFormat:@"%@\n\n%@ %@\n%@ %@", mismatchTitle, purchaserText, purchaser ?: @"-", activeText, active ?: @"-"];
             UIAlertController *mismatchAlert = [UIAlertController alertControllerWithTitle:OBF("E9AA8CE8AF81E5A4B1E8B4A5") message:msg preferredStyle:UIAlertControllerStyleAlert]; 
@@ -115,14 +114,13 @@
                     }
                     [switchSheet addAction:[UIAlertAction actionWithTitle:btnTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction *act) {
                         
-                        // 🎯 弹出不可交互弹窗阻断操作
-                        UIAlertController *switchingAlert = [UIAlertController alertControllerWithTitle:OBF("E58887E68DA2E4B8ADEFBC8CE8AFB7E7A88DE580992E2E2E") message:nil preferredStyle:UIAlertControllerStyleAlert]; // "切换中，请稍候..."
+                        // 🎯 切换文案调整为："切换中，稍候..."
+                        UIAlertController *switchingAlert = [UIAlertController alertControllerWithTitle:OBF("E58887E68DA2E4B8ADEFBC8CE7A88DE580992E2E2E") message:nil preferredStyle:UIAlertControllerStyleAlert];
                         applyRoundedUI(switchingAlert);
                         [self presentViewController:switchingAlert animated:YES completion:nil];
 
                         [[ARDowngradeManager sharedManager] executeAccountSwitchToName:accName];
                         
-                        // 🎯 核心修复：提升至安全的 1.5 秒延时等待系统底层帐号文件重写入完成，告别无限死循环！
                         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                             [switchingAlert dismissViewControllerAnimated:YES completion:^{
                                 [self tableView:self.tableView didSelectRowAtIndexPath:indexPath];
@@ -140,9 +138,11 @@
 }
 
 - (void)executeDowngradeProcessWithVersionStr:(NSString *)verStr versionID:(long long)vId {
-    NSString *msg = [NSString stringWithFormat:OBF("E58DB3E5B086E5BC80E5A78BE99D99E9BB98E4B88BE8BDBDE5AE89E8A38520762540EFBC8CE5AE8CE68890E5908EE7B3BBE7BB9FE4BC9AE887AAE58AA8E69BB4E696B0E5AE89E8A385E38082"), verStr];
+    // 🎯 弹窗文案精简调整为 “x.x.x确认” 格式
+    NSString *msg = [NSString stringWithFormat:OBF("2540E7A1AEE8AEA4"), verStr];
     
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:OBF("E7A1AEE8AEA4E9998DE7BAA7") message:msg preferredStyle:UIAlertControllerStyleAlert]; 
+    // 🎯 弹窗标题统一调整为 “确认”
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:OBF("E7A1AEE8AEA4") message:msg preferredStyle:UIAlertControllerStyleAlert]; 
     
     void (^applyRoundedUI)(UIAlertController *) = ^(UIAlertController *ac) {
         CGFloat radius = 25.0;
@@ -159,7 +159,9 @@
     applyRoundedUI(alert);
     
     [alert addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]]; 
-    [alert addAction:[UIAlertAction actionWithTitle:OBF("E5BC80E5A78BE9998DE7BAA7") style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) { 
+    
+    // 🎯 降级按钮也统一调整为 “确认”
+    [alert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE8AEA4") style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) { 
         
         [[ARDowngradeManager sharedManager] installAppWithTrackID:self.trackID versionID:vId bundleID:self.bundleID];
         

@@ -4,7 +4,7 @@
 
 #import <Foundation/Foundation.h>
 
-// 1. Classes - 彻底打乱类名，从 Mach-O 符号表中抹除所有明文特征
+// 1. Classes - 彻底打乱类名，从 Mach-O 符号表中抹除所有明文类名特征
 #define ARAppDelegate                  _X8jL2mQ9pA_
 #define ARDowngradeManager             _P3kR7xN1cL_
 #define ARRootViewController           _V9aB4wY2zM_

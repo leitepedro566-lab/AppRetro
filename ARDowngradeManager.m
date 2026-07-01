@@ -29,7 +29,6 @@
 
 - (void)recursiveFetchTrackID:(NSString *)bundleID codes:(NSArray *)codes index:(NSInteger)index completion:(void(^)(long long, NSError *))completion {
     if (index >= codes.count) {
-        // 🎯 提示文案变更为：“未找到应用”
         if (completion) completion(0, [NSError errorWithDomain:OBF("417070526574726F") code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E69CAAE689BEE588B0E5BA94E794A8")}]);
         return;
     }
@@ -107,7 +106,6 @@
 #pragma clang diagnostic pop
 
         if (name) {
-            // 排除名为 local 的无效系统内部账号
             if ([name.lowercaseString isEqualToString:OBF("6C6F63616C")]) continue;
             [allLocalNames addObject:name];
         }
@@ -226,23 +224,15 @@
         
         NSString *adamId = [NSString stringWithFormat:OBF("256C6C64"), trackId];
         NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), versionId];
+        
+        // 🎯 参数内本身已包含 salableAdamId (等同于 trackId)，因此彻底移除了引发崩溃的 itemIdentifier KVC 设值
         NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D312668617341736B6564546F446F776E6C6F6164557064617465733D31"), adamId, appExtVrsId];
 
-        // 🎯 修复崩溃：放弃 KVC，改用底层的方法签名赋值
         SEL setBuyParamsSel = NSSelectorFromString(OBF("736574427579506172616D65746572733A"));
         if ([purchase respondsToSelector:setBuyParamsSel]) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
             [purchase performSelector:setBuyParamsSel withObject:offerString];
-#pragma clang diagnostic pop
-        }
-        
-        SEL setItemIdSel = NSSelectorFromString(OBF("7365744974656D4964656E7469666965723A"));
-        if ([purchase respondsToSelector:setItemIdSel]) {
-            NSNumber *trackIdNum = @(trackId);
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-            [purchase performSelector:setItemIdSel withObject:trackIdNum];
 #pragma clang diagnostic pop
         }
 
@@ -357,7 +347,10 @@
                 }
                 
                 if (actualError) {
-                    [self fallbackInstallWithTrackID:trackId versionID:versionId];
+                    // 🎯 修复崩溃二：确保安全地在主队列调用备用逻辑
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [self fallbackInstallWithTrackID:trackId versionID:versionId];
+                    });
                 }
             };
             id copiedHandler = [handlerBlock copy];

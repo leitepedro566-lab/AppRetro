@@ -215,58 +215,67 @@
 }
 
 - (void)fallbackInstallWithTrackID:(long long)trackId versionID:(long long)versionId {
-    NSString *skuiPath = OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F72654B697455492E6672616D65776F726B2F53746F72654B69745549");
-    void *handle = dlopen([skuiPath UTF8String], RTLD_LAZY);
-    if (!handle) return;
+    void *ssHandle = dlopen([OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F726553657276696365732E6672616D65776F726B2F53746F72655365727669636573") UTF8String], RTLD_LAZY);
+    if (!ssHandle) return;
 
-    NSString *adamId = [NSString stringWithFormat:OBF("256C6C64"), trackId];
-    NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), versionId];
+    Class SSPurchaseClass = NSClassFromString(OBF("53535075726368617365"));
+    Class SSPurchaseRequestClass = NSClassFromString(OBF("5353507572636861736552657175657374"));
     
-    NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
-
-    NSDictionary *offerDict = @{OBF("627579506172616D73"): offerString}; 
-    NSDictionary *itemDict = @{OBF("5F6974656D4F66666572"): adamId}; 
-
-    Class SKUIItemOfferClass = NSClassFromString(OBF("534B55494974656D4F66666572"));
-    Class SKUIItemClass = NSClassFromString(OBF("534B55494974656D"));
-    Class SKUIItemStateCenterClass = NSClassFromString(OBF("534B55494974656D537461746543656E746572"));
-    Class SKUIClientContextClass = NSClassFromString(OBF("534B5549436C69656E74436F6E74657874"));
-
-    if (SKUIItemOfferClass && SKUIItemClass && SKUIItemStateCenterClass) {
-        id offer = [SKUIItemOfferClass alloc];
-        id item = [SKUIItemClass alloc];
-        SEL initSel = NSSelectorFromString(OBF("696E6974576974684C6F6F6B757044696374696F6E6172793A"));
+    if (SSPurchaseClass && SSPurchaseRequestClass) {
+        id purchase = [[SSPurchaseClass alloc] init];
         
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-        offer = [offer performSelector:initSel withObject:offerDict];
-        item = [item performSelector:initSel withObject:itemDict];
-#pragma clang diagnostic pop
-
-        if (!item) return;
-
-        [item setValue:offer forKey:OBF("5F6974656D4F66666572")]; 
-        [item setValue:OBF("696F73536F667477617265") forKey:OBF("5F6974656D4B696E64537472696E67")]; 
-        [item setValue:@(versionId) forKey:OBF("5F76657273696F6E4964656E746966696572")]; 
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-        id center = [SKUIItemStateCenterClass performSelector:NSSelectorFromString(OBF("64656661756C7443656E746572"))]; 
-        id context = [SKUIClientContextClass performSelector:NSSelectorFromString(OBF("64656661756C74436F6E74657874"))]; 
-#pragma clang diagnostic pop
-
-        NSArray *items = @[item];
+        NSString *adamId = [NSString stringWithFormat:OBF("256C6C64"), trackId];
+        NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), versionId];
         
-        SEL newPurchasesSel = NSSelectorFromString(OBF("5F6E6577507572636861736573576974684974656D733A"));
-        id purchases = nil;
-        if ([center respondsToSelector:newPurchasesSel]) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-            purchases = [center performSelector:newPurchasesSel withObject:items];
-#pragma clang diagnostic pop
+        NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D312668617341736B6564546F446F776E6C6F6164557064617465733D31"), adamId, appExtVrsId];
+
+        [purchase setValue:offerString forKey:OBF("627579506172616D6574657273")]; 
+        [purchase setValue:@(trackId) forKey:OBF("6974656D4964656E746966696572")]; 
+        
+        SEL setBackgroundSel = NSSelectorFromString(OBF("7365744261636B67726F756E6450757263686173653A"));
+        if ([purchase respondsToSelector:setBackgroundSel]) {
+            BOOL val = YES;
+            NSMethodSignature *sig = [purchase methodSignatureForSelector:setBackgroundSel];
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:purchase]; 
+            [inv setSelector:setBackgroundSel];
+            [inv setArgument:&val atIndex:2]; 
+            [inv invoke];
+        }
+        
+        SEL setPreAuthSel = NSSelectorFromString(OBF("73657449676E6F726573466F7263656450617373776F72645265737472696374696F6E3A"));
+        if ([purchase respondsToSelector:setPreAuthSel]) {
+            BOOL val = YES;
+            NSMethodSignature *sig = [purchase methodSignatureForSelector:setPreAuthSel];
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:purchase]; 
+            [inv setSelector:setPreAuthSel];
+            [inv setArgument:&val atIndex:2]; 
+            [inv invoke];
         }
 
-        [(SKUIItemStateCenter_Private *)center _performPurchases:purchases hasBundlePurchase:NO withClientContext:context completionBlock:^(id arg1){}];
+        id request = [SSPurchaseRequestClass alloc];
+        SEL initSel = NSSelectorFromString(OBF("696E6974576974685075726368617365733A"));
+        NSArray *purchases = @[purchase];
+        
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        request = [request performSelector:initSel withObject:purchases];
+#pragma clang diagnostic pop
+        
+        SEL startSel = NSSelectorFromString(OBF("7374617274576974685075726368617365526573706F6E7365426C6F636B3A"));
+        if ([request respondsToSelector:startSel]) {
+            void (^responseBlock)(id, NSError*) = ^(id response, NSError *error) {};
+            id copiedBlock = [responseBlock copy];
+            
+            NSMethodSignature *sig = [request methodSignatureForSelector:startSel];
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:request]; 
+            [inv setSelector:startSel];
+            [inv setArgument:&copiedBlock atIndex:2]; 
+            [inv retainArguments];
+            [inv invoke];
+        }
     }
 }
 

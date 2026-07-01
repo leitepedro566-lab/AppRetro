@@ -26,12 +26,11 @@
     self.arSearchController = [[UISearchController alloc] initWithSearchResultsController:nil];
     self.arSearchController.searchResultsUpdater = self;
     self.arSearchController.obscuresBackgroundDuringPresentation = NO;
-    self.arSearchController.searchBar.placeholder = OBF("E6909CE7B4A2E5BA94E794A8202853656172636829"); // "搜索应用 (Search)"
+    self.arSearchController.searchBar.placeholder = OBF("E6909CE7B4A2E5BA94E794A8202853656172636829"); 
     self.navigationItem.searchController = self.arSearchController;
     self.definesPresentationContext = YES;
     self.navigationItem.hidesSearchBarWhenScrolling = NO;
 
-    // TG 频道按钮
     UIBarButtonItem *tgItem = [[UIBarButtonItem alloc] initWithTitle:OBF("5447E9A291E98193") style:UIBarButtonItemStylePlain target:self action:@selector(arOpenTGChannel)];
     self.navigationItem.rightBarButtonItem = tgItem;
 
@@ -57,7 +56,6 @@
         NSString *bundleIdStr = [proxy performSelector:NSSelectorFromString(OBF("62756E646C654964656E746966696572"))]; 
 #pragma clang diagnostic pop
         if (!bundleIdStr) continue;
-        
         if ([bundleIdStr hasPrefix:OBF("636F6D2E6170706C652E")]) continue;
         
 #pragma clang diagnostic push
@@ -65,7 +63,6 @@
         NSURL *bundleURL = [proxy respondsToSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] ? [proxy performSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] : nil;
 #pragma clang diagnostic pop
         if (bundleURL) {
-            // 完美判断 _TrollStore 文件在 .app 的同级(父)目录
             NSString *appParentDir = [bundleURL.path stringByDeletingLastPathComponent];
             NSString *trollStorePath = [appParentDir stringByAppendingPathComponent:OBF("5F54726F6C6C53746F7265")];
             if ([[NSFileManager defaultManager] fileExistsAtPath:trollStorePath]) continue; 
@@ -119,7 +116,6 @@
     NSString *cellId = OBF("41707043656C6C"); 
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cellId];
     if (!cell) {
-        // 包名在下方
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:cellId];
         cell.imageView.layer.masksToBounds = YES;
         cell.imageView.layer.cornerRadius = 12.0;
@@ -133,23 +129,24 @@
     NSString *bundleIdStr = [proxy performSelector:bundleSel];
     NSString *name = [proxy respondsToSelector:nameSel] ? [proxy performSelector:nameSel] : bundleIdStr;
     
-    NSString *version = OBF("2D"); // "-"
+    NSString *version = OBF("2D"); 
     SEL versionSel = NSSelectorFromString(OBF("73686F727456657273696F6E537472696E67")); 
     if ([proxy respondsToSelector:versionSel]) {
         version = [proxy performSelector:versionSel];
     }
+    
+    NSURL *bundleURL = [proxy respondsToSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] ? [proxy performSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] : nil;
+    NSString *fullAppPath = bundleURL.path;
 #pragma clang diagnostic pop
     
     cell.textLabel.text = name;
     cell.textLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightBold];
-    
     cell.detailTextLabel.text = bundleIdStr; 
     cell.detailTextLabel.font = [UIFont systemFontOfSize:12];
     cell.detailTextLabel.textColor = [UIColor systemGrayColor];
     
-    // 版本号右侧对齐
     UILabel *rightVerLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 75, 30)];
-    rightVerLabel.text = [NSString stringWithFormat:OBF("762540"), version]; // "v%@"
+    rightVerLabel.text = [NSString stringWithFormat:OBF("762540"), version]; 
     rightVerLabel.font = [UIFont systemFontOfSize:13 weight:UIFontWeightMedium];
     rightVerLabel.textColor = [UIColor secondaryLabelColor];
     rightVerLabel.textAlignment = NSTextAlignmentRight;
@@ -159,17 +156,10 @@
     if ([UIImage respondsToSelector:iconSel]) {
         NSMethodSignature *sig = [UIImage methodSignatureForSelector:iconSel];
         NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-        [inv setTarget:[UIImage class]];
-        [inv setSelector:iconSel];
-        [inv setArgument:&bundleIdStr atIndex:2];
-        int format = 1;
-        [inv setArgument:&format atIndex:3];
-        CGFloat scale = [UIScreen mainScreen].scale;
-        [inv setArgument:&scale atIndex:4];
-        [inv invoke];
-        
-        UIImage *__unsafe_unretained appIcon = nil;
-        [inv getReturnValue:&appIcon];
+        [inv setTarget:[UIImage class]]; [inv setSelector:iconSel]; [inv setArgument:&bundleIdStr atIndex:2];
+        int format = 1; [inv setArgument:&format atIndex:3];
+        CGFloat scale = [UIScreen mainScreen].scale; [inv setArgument:&scale atIndex:4]; [inv invoke];
+        UIImage *__unsafe_unretained appIcon = nil; [inv getReturnValue:&appIcon];
         cell.imageView.image = appIcon;
     }
     return cell;
@@ -178,11 +168,8 @@
 - (void)tableView:(UITableView *)tableView willDisplayCell:(UITableViewCell *)cell forRowAtIndexPath:(NSIndexPath *)indexPath {
     CGFloat radius = 22.0;
     CACornerMask mask = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
-    cell.layer.borderWidth = 0.0;
-    cell.layer.borderColor = [UIColor clearColor].CGColor;
-    cell.layer.cornerRadius = radius;
-    cell.layer.maskedCorners = mask;
-    cell.layer.masksToBounds = YES;
+    cell.layer.borderWidth = 0.0; cell.layer.borderColor = [UIColor clearColor].CGColor;
+    cell.layer.cornerRadius = radius; cell.layer.maskedCorners = mask; cell.layer.masksToBounds = YES;
     
     if (@available(iOS 14.0, *)) {
         UIBackgroundConfiguration *bg = cell.backgroundConfiguration;
@@ -191,7 +178,6 @@
             cell.backgroundConfiguration = bg;
         }
     }
-    if (@available(iOS 13.0, *)) cell.layer.cornerCurve = kCACornerCurveContinuous;
 }
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath { return 70.0; }
@@ -210,11 +196,11 @@
     NSString *bundleIdStr = [proxy performSelector:bundleSel];
     SEL nameSel = NSSelectorFromString(OBF("6C6F63616C697A65644E616D65"));
     NSString *name = [proxy respondsToSelector:nameSel] ? [proxy performSelector:nameSel] : bundleIdStr;
+    NSURL *bundleURL = [proxy respondsToSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] ? [proxy performSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] : nil;
+    NSString *fullAppPath = bundleURL.path;
 #pragma clang diagnostic pop
     
-    UIAlertController *loading = [UIAlertController alertControllerWithTitle:OBF("E8AFB7E7A88DE58099") // "请稍候"
-                                                                     message:OBF("E6ADA3E59CA8E8AFB7E6B182E69C8DE58AA1E599A8E88EB7E58F96E78988E69CACE58897E8A1A82E2E2E")
-                                                              preferredStyle:UIAlertControllerStyleAlert];
+    UIAlertController *loading = [UIAlertController alertControllerWithTitle:OBF("E8AFB7E7A88DE58099") message:OBF("E6ADA3E59CA8E8AFB7E6B182E69C8DE58AA1E599A8E88EB7E58F96E78988E69CACE58897E8A1A82E2E2E") preferredStyle:UIAlertControllerStyleAlert];
     [self presentViewController:loading animated:YES completion:nil];
     
     [[ARDowngradeManager sharedManager] fetchTrackIDForBundleID:bundleIdStr completion:^(long long trackId, NSError *error) {
@@ -241,6 +227,10 @@
                 versionVC.appName = name;
                 versionVC.trackID = trackId;
                 versionVC.versions = [versionsArr sortedArrayUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:OBF("72656C656173655F64617465") ascending:NO]]]; 
+                
+                // 🚀 将关键的物理路径属性透传给降级视图，用于防跨号失败阻断检测
+                versionVC.appPhysicalPath = fullAppPath; 
+                
                 [self.navigationController pushViewController:versionVC animated:YES];
             }];
         }];

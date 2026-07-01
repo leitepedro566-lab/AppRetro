@@ -134,10 +134,9 @@
     if ([proxy respondsToSelector:versionSel]) {
         version = [proxy performSelector:versionSel];
     }
-    
-    NSURL *bundleURL = [proxy respondsToSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] ? [proxy performSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] : nil;
-    NSString *fullAppPath = bundleURL.path;
 #pragma clang diagnostic pop
+    
+    // 闲置的 fullAppPath 和 bundleURL 已经从这里被抹除
     
     cell.textLabel.text = name;
     cell.textLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightBold];
@@ -196,6 +195,8 @@
     NSString *bundleIdStr = [proxy performSelector:bundleSel];
     SEL nameSel = NSSelectorFromString(OBF("6C6F63616C697A65644E616D65"));
     NSString *name = [proxy respondsToSelector:nameSel] ? [proxy performSelector:nameSel] : bundleIdStr;
+    
+    // 我们在这里完整保留获取 bundleURL.path 的操作，以便传给下一个验证控制器
     NSURL *bundleURL = [proxy respondsToSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] ? [proxy performSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] : nil;
     NSString *fullAppPath = bundleURL.path;
 #pragma clang diagnostic pop
@@ -228,7 +229,6 @@
                 versionVC.trackID = trackId;
                 versionVC.versions = [versionsArr sortedArrayUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:OBF("72656C656173655F64617465") ascending:NO]]]; 
                 
-                // 🚀 将关键的物理路径属性透传给降级视图，用于防跨号失败阻断检测
                 versionVC.appPhysicalPath = fullAppPath; 
                 
                 [self.navigationController pushViewController:versionVC animated:YES];

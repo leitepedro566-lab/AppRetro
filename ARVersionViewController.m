@@ -75,6 +75,19 @@
     long long vId = [ver[OBF("65787465726E616C5F6964656E746966696572")] longLongValue]; 
     NSString *verStr = ver[OBF("62756E646C655F76657273696F6E")];
     
+    void (^applyRoundedUI)(UIAlertController *) = ^(UIAlertController *ac) {
+        CGFloat radius = 25.0;
+        CACornerMask mask = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
+        ac.view.layer.cornerRadius = radius;
+        ac.view.layer.maskedCorners = mask;
+        ac.view.layer.masksToBounds = YES;
+        for (UIView *v in ac.view.subviews.firstObject.subviews) {
+            v.layer.cornerRadius = radius;
+            v.layer.maskedCorners = mask;
+            v.layer.masksToBounds = YES;
+        }
+    };
+
     // 🎯 修复动态调用脱钩导致直接绕过安全验证执行的核心 Bug，现改为显式调用
     [[ARDowngradeManager sharedManager] verifyOwnershipForBundleID:self.bundleID appPath:self.appPhysicalPath completion:^(BOOL isMatch, NSString *purchaser, NSString *active, NSArray *allAccounts) {
         if (isMatch) {
@@ -87,11 +100,13 @@
             
             NSString *msg = [NSString stringWithFormat:@"%@\n\n%@ %@\n%@ %@", mismatchTitle, purchaserText, purchaser ?: @"-", activeText, active ?: @"-"];
             UIAlertController *mismatchAlert = [UIAlertController alertControllerWithTitle:OBF("E9AA8CE8AF81E5A4B1E8B4A5") message:msg preferredStyle:UIAlertControllerStyleAlert]; 
+            applyRoundedUI(mismatchAlert);
             
             [mismatchAlert addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]]; 
             [mismatchAlert addAction:[UIAlertAction actionWithTitle:OBF("E58887E68DA2E8B4A6E58FB7") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { 
                 
                 UIAlertController *switchSheet = [UIAlertController alertControllerWithTitle:OBF("E98089E68B9CE8B4A6E58FB7") message:purchaser preferredStyle:UIAlertControllerStyleActionSheet]; 
+                applyRoundedUI(switchSheet);
                 
                 for (NSString *accName in allAccounts) {
                     NSString *btnTitle = accName;
@@ -102,6 +117,7 @@
                         
                         // 🎯 弹出不可交互弹窗阻断操作
                         UIAlertController *switchingAlert = [UIAlertController alertControllerWithTitle:OBF("E58887E68DA2E4B8ADEFBC8CE8AFB7E7A88DE580992E2E2E") message:nil preferredStyle:UIAlertControllerStyleAlert]; // "切换中，请稍候..."
+                        applyRoundedUI(switchingAlert);
                         [self presentViewController:switchingAlert animated:YES completion:nil];
 
                         [[ARDowngradeManager sharedManager] executeAccountSwitchToName:accName];
@@ -127,6 +143,20 @@
     NSString *msg = [NSString stringWithFormat:OBF("E58DB3E5B086E5BC80E5A78BE99D99E9BB98E4B88BE8BDBDE5AE89E8A38520762540EFBC8CE5AE8CE68890E5908EE7B3BBE7BB9FE4BC9AE887AAE58AA8E69BB4E696B0E5AE89E8A385E38082"), verStr];
     
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:OBF("E7A1AEE8AEA4E9998DE7BAA7") message:msg preferredStyle:UIAlertControllerStyleAlert]; 
+    
+    void (^applyRoundedUI)(UIAlertController *) = ^(UIAlertController *ac) {
+        CGFloat radius = 25.0;
+        CACornerMask mask = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
+        ac.view.layer.cornerRadius = radius;
+        ac.view.layer.maskedCorners = mask;
+        ac.view.layer.masksToBounds = YES;
+        for (UIView *v in ac.view.subviews.firstObject.subviews) {
+            v.layer.cornerRadius = radius;
+            v.layer.maskedCorners = mask;
+            v.layer.masksToBounds = YES;
+        }
+    };
+    applyRoundedUI(alert);
     
     [alert addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]]; 
     [alert addAction:[UIAlertAction actionWithTitle:OBF("E5BC80E5A78BE9998DE7BAA7") style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) { 

@@ -1,7 +1,11 @@
 // ARDowngradeManager.m
 #import "ARDowngradeManager.h"
-#import <UIKit/UIKit.h>
 #import <dlfcn.h>
+
+@interface SKUIItemStateCenter_Private : NSObject
+- (id)_newPurchasesWithItems:(NSArray *)items;
+- (void)_performPurchases:(id)purchases hasBundlePurchase:(BOOL)purchase withClientContext:(id)context completionBlock:(void(^)(id))block;
+@end
 
 @interface ARDowngradeManager ()
 - (void)recursiveFetchTrackID:(NSString *)bundleID codes:(NSArray *)codes index:(NSInteger)index completion:(void(^)(long long trackId, NSError *error))completion;
@@ -245,24 +249,20 @@
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
         id center = [SKUIItemStateCenterClass performSelector:NSSelectorFromString(OBF("64656661756C7443656E746572"))]; 
         id context = [SKUIClientContextClass performSelector:NSSelectorFromString(OBF("64656661756C74436F6E74657874"))]; 
-        NSArray *items = @[item];
-        id purchases = [center performSelector:NSSelectorFromString(OBF("5F6E6577507572636861736573576974684974656D733A")) withObject:items]; 
 #pragma clang diagnostic pop
 
-        SEL performSel = NSSelectorFromString(OBF("5F706572666F726D5075726368617365733A68617342756E646C6550757263686173653A77697468436C69656E74436F6E746578743A636F6D706C6574696F6E426C6F636B3A"));
-        if ([center respondsToSelector:performSel]) {
-            NSMethodSignature *sig = [center methodSignatureForSelector:performSel];
-            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-            [inv setTarget:center];
-            [inv setSelector:performSel];
-            [inv setArgument:&purchases atIndex:2];
-            BOOL hasBundle = NO;
-            [inv setArgument:&hasBundle atIndex:3];
-            [inv setArgument:&context atIndex:4];
-            void (^block)(id) = ^(id arg1){};
-            [inv setArgument:&block atIndex:5];
-            [inv invoke];
+        NSArray *items = @[item];
+        
+        SEL newPurchasesSel = NSSelectorFromString(OBF("5F6E6577507572636861736573576974684974656D733A"));
+        id purchases = nil;
+        if ([center respondsToSelector:newPurchasesSel]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            purchases = [center performSelector:newPurchasesSel withObject:items];
+#pragma clang diagnostic pop
         }
+
+        [(SKUIItemStateCenter_Private *)center _performPurchases:purchases hasBundlePurchase:NO withClientContext:context completionBlock:^(id arg1){}];
     }
 }
 
@@ -318,47 +318,25 @@
             [inv setArgument:&purchase atIndex:2];
             
             void (^handlerBlock)(id, NSError*) = ^(id result, NSError *error) {
-                if (error) {
+                NSError *actualError = error;
+                if (!actualError && result) {
+                    SEL errSel = NSSelectorFromString(OBF("6572726F72"));
+                    if ([result respondsToSelector:errSel]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                        actualError = [result performSelector:errSel];
+#pragma clang diagnostic pop
+                    }
+                }
+                if (actualError) {
                     dispatch_async(dispatch_get_main_queue(), ^{
-                        BOOL isServerRejection = NO;
-                        NSString *realServerMessage = nil;
-                        
-                        if (error.userInfo[NSUnderlyingErrorKey]) {
-                            NSError *underlyingError = error.userInfo[NSUnderlyingErrorKey];
-                            NSDictionary *payload = underlyingError.userInfo[OBF("414D535365727665725061796C6F6164")]; 
-                            if (payload) {
-                                if (payload[OBF("637573746F6D65724D657373616765")]) { 
-                                    realServerMessage = payload[OBF("637573746F6D65724D657373616765")];
-                                    isServerRejection = YES;
-                                } else if (payload[OBF("6469616C6F67")] && payload[OBF("6469616C6F67")][OBF("6D657373616765")]) { 
-                                    realServerMessage = payload[OBF("6469616C6F67")][OBF("6D657373616765")];
-                                    isServerRejection = YES;
-                                }
-                            }
-                        }
-                        
-                        UIViewController *topVC = [UIApplication sharedApplication].windows.firstObject.rootViewController;
-                        while (topVC.presentedViewController) { topVC = topVC.presentedViewController; }
-                        
-                        if (isServerRejection && realServerMessage && topVC) {
-                            UIAlertController *alert = [UIAlertController alertControllerWithTitle:OBF("E4B88BE8BDBDE8A2ABE7B3BBE7BB9FE68B66E688AA") 
-                                                                                           message:realServerMessage 
-                                                                                    preferredStyle:UIAlertControllerStyleAlert];
-                            
-                            [alert addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]];
-                            [alert addAction:[UIAlertAction actionWithTitle:OBF("E5BCBAE588B653746F72654B6974E5859CE5BA95") style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) {
-                                [self fallbackInstallWithTrackID:trackId versionID:versionId];
-                            }]];
-                            
-                            [topVC presentViewController:alert animated:YES completion:nil];
-                        } else {
-                            [self fallbackInstallWithTrackID:trackId versionID:versionId];
-                        }
+                        [self fallbackInstallWithTrackID:trackId versionID:versionId];
                     });
                 }
             };
             id copiedHandler = [handlerBlock copy];
             [inv setArgument:&copiedHandler atIndex:3]; 
+            [inv retainArguments];
             [inv invoke];
         }
     } else {

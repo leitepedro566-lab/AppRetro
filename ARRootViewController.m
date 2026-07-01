@@ -201,13 +201,28 @@
     NSString *fullAppPath = bundleURL.path;
 #pragma clang diagnostic pop
     
+    void (^applyRoundedUI)(UIAlertController *) = ^(UIAlertController *ac) {
+        CGFloat radius = 22.0;
+        CACornerMask mask = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
+        ac.view.layer.cornerRadius = radius;
+        ac.view.layer.maskedCorners = mask;
+        ac.view.layer.masksToBounds = YES;
+        for (UIView *v in ac.view.subviews.firstObject.subviews) {
+            v.layer.cornerRadius = radius;
+            v.layer.maskedCorners = mask;
+            v.layer.masksToBounds = YES;
+        }
+    };
+
     UIAlertController *loading = [UIAlertController alertControllerWithTitle:OBF("E8AFB7E7A88DE58099") message:OBF("E6ADA3E59CA8E8AFB7E6B182E69C8DE58AA1E599A8E88EB7E58F96E78988E69CACE58897E8A1A82E2E2E") preferredStyle:UIAlertControllerStyleAlert];
+    applyRoundedUI(loading);
     [self presentViewController:loading animated:YES completion:nil];
     
     [[ARDowngradeManager sharedManager] fetchTrackIDForBundleID:bundleIdStr completion:^(long long trackId, NSError *error) {
         if (error || trackId == 0) {
             [loading dismissViewControllerAnimated:YES completion:^{
                 UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:OBF("E5A4B1E8B4A5") message:error.localizedDescription preferredStyle:UIAlertControllerStyleAlert];
+                applyRoundedUI(errAlert);
                 [errAlert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:nil]];
                 [self presentViewController:errAlert animated:YES completion:nil];
             }];
@@ -218,6 +233,7 @@
             [loading dismissViewControllerAnimated:YES completion:^{
                 if (error) {
                     UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:OBF("E5A4B1E8B4A5") message:error.localizedDescription preferredStyle:UIAlertControllerStyleAlert];
+                    applyRoundedUI(errAlert);
                     [errAlert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:nil]];
                     [self presentViewController:errAlert animated:YES completion:nil];
                     return;

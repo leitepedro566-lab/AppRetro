@@ -185,9 +185,8 @@
     CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (__bridge CFStringRef)OBF("636F6D2E73746F726573776974636865722E6163636F756E74735F6368616E676564"), NULL, NULL, YES);
 }
 
-// 🎯 核心兜底函数：彻底混淆的 StoreKitUI 调用。它能够唤起 iOS 系统的原生对话框
-- (void)_fallback_installWithTrackID:(long long)trackId versionID:(long long)versionId {
-    // 动态加载 StoreKitUI: /System/Library/PrivateFrameworks/StoreKitUI.framework/StoreKitUI
+// 🎯 降级方案二 (兜底): StoreKitUI - 带有前端界面弹窗支持 (能接住iOS系统过低弹窗)
+- (void)fallbackInstallWithTrackID:(long long)trackId versionID:(long long)versionId {
     NSString *skuiPath = OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F72654B697455492E6672616D65776F726B2F53746F72654B69745549");
     void *handle = dlopen([skuiPath UTF8String], RTLD_LAZY);
     if (!handle) return;
@@ -195,14 +194,11 @@
     NSString *adamId = [NSString stringWithFormat:@"%lld", trackId];
     NSString *appExtVrsId = [NSString stringWithFormat:@"%lld", versionId];
     
-    // 参数字符串: productType=C&price=0&salableAdamId=%@&pricingParameters=pricingParameter&appExtVrsId=%@&clientBuyId=1&installed=0&trolled=1
     NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
 
-    // buyParams 和 _itemOffer
-    NSDictionary *offerDict = @{OBF("627579506172616D73"): offerString}; 
-    NSDictionary *itemDict = @{OBF("5F6974656D4F66666572"): adamId};
+    NSDictionary *offerDict = @{OBF("627579506172616D73"): offerString}; // buyParams
+    NSDictionary *itemDict = @{OBF("5F6974656D4F66666572"): adamId}; // _itemOffer
 
-    // SKUIItemOffer, SKUIItem, SKUIItemStateCenter, SKUIClientContext
     Class SKUIItemOfferClass = NSClassFromString(OBF("534B55494974656D4F66666572"));
     Class SKUIItemClass = NSClassFromString(OBF("534B55494974656D"));
     Class SKUIItemStateCenterClass = NSClassFromString(OBF("534B55494974656D537461746543656E746572"));
@@ -211,7 +207,6 @@
     if (SKUIItemOfferClass && SKUIItemClass && SKUIItemStateCenterClass) {
         id offer = [SKUIItemOfferClass alloc];
         id item = [SKUIItemClass alloc];
-        // initWithLookupDictionary:
         SEL initSel = NSSelectorFromString(OBF("696E6974576974684C6F6F6B757044696374696F6E6172793A"));
         
 #pragma clang diagnostic push
@@ -223,18 +218,17 @@
         if (!item) return;
 
         [item setValue:offer forKey:OBF("5F6974656D4F66666572")]; 
-        [item setValue:OBF("696F73536F667477617265") forKey:OBF("5F6974656D4B696E64537472696E67")]; // iosSoftware -> _itemKindString
-        [item setValue:@(versionId) forKey:OBF("5F76657273696F6E4964656E746966696572")]; // _versionIdentifier
+        [item setValue:OBF("696F73536F667477617265") forKey:OBF("5F6974656D4B696E64537472696E67")]; 
+        [item setValue:@(versionId) forKey:OBF("5F76657273696F6E4964656E746966696572")]; 
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-        id center = [SKUIItemStateCenterClass performSelector:NSSelectorFromString(OBF("64656661756C7443656E746572"))]; // defaultCenter
-        id context = [SKUIClientContextClass performSelector:NSSelectorFromString(OBF("64656661756C74436F6E74657874"))]; // defaultContext
+        id center = [SKUIItemStateCenterClass performSelector:NSSelectorFromString(OBF("64656661756C7443656E746572"))]; 
+        id context = [SKUIClientContextClass performSelector:NSSelectorFromString(OBF("64656661756C74436F6E74657874"))]; 
         NSArray *items = @[item];
-        id purchases = [center performSelector:NSSelectorFromString(OBF("5F6E6577507572636861736573576974684974656D733A")) withObject:items]; // _newPurchasesWithItems:
+        id purchases = [center performSelector:NSSelectorFromString(OBF("5F6E6577507572636861736573576974684974656D733A")) withObject:items]; 
 #pragma clang diagnostic pop
 
-        // _performPurchases:hasBundlePurchase:withClientContext:completionBlock:
         SEL performSel = NSSelectorFromString(OBF("5F706572666F726D5075726368617365733A68617342756E646C6550757263686173653A77697468436C69656E74436F6E746578743A636F6D706C6574696F6E426C6F636B3A"));
         if ([center respondsToSelector:performSel]) {
             NSMethodSignature *sig = [center methodSignatureForSelector:performSel];
@@ -252,16 +246,21 @@
     }
 }
 
+// 🎯 降级方案一 (首选): AppStoreDaemon - 静默下载 (绕过普通密码弹窗)
 - (void)installAppWithTrackID:(long long)trackId versionID:(long long)versionId bundleID:(NSString *)bundleID {
     NSString *daemonPath = OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F41707053746F72654461656D6F6E2E6672616D65776F726B2F41707053746F72654461656D6F6E");
     void *handle = dlopen([daemonPath UTF8String], RTLD_LAZY);
-    if (!handle) return;
+    if (!handle) {
+        // 环境不支持 Daemon，直接走兜底
+        [self fallbackInstallWithTrackID:trackId versionID:versionId];
+        return;
+    }
 
     NSString *adamId = [NSString stringWithFormat:@"%lld", trackId];
     NSString *appExtVrsId = [NSString stringWithFormat:@"%lld", versionId];
     
-    // ASD 请求中附带 hasAskedToDownloadPreviousVersion=true，大多数情况下直接绕过免密
-    NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D25402668617341736B6564546F446F776E6C6F616450726576696F757356657273696F6E3D7472756526636C69656E7442757949643D312669735265646F776E6C6F61643D7472756526696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
+    // 参数配置
+    NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
 
     Class ASDPurchaseClass = NSClassFromString(OBF("4153445075726368617365"));
     Class ASDPurchaseManagerClass = NSClassFromString(OBF("41534450757263686173654D616E61676572"));
@@ -272,26 +271,12 @@
         [purchase setValue:bundleID forKey:OBF("62756E646C654944")]; 
         [purchase setValue:offerString forKey:OBF("627579506172616D6574657273")]; 
         
-        [purchase setValue:@(YES) forKey:OBF("69735265646F776E6C6F6164")]; // isRedownload = YES
-        [purchase setValue:@(YES) forKey:OBF("637265617465734A6F6273")]; // createsJobs = YES
-        [purchase setValue:@(NO) forKey:OBF("6973557064617465")]; // isUpdate = NO
+        // 【关键】原生 ASD 静默下载，必须设为更新模式，跳过密码弹窗
+        [purchase setValue:@(YES) forKey:OBF("6973557064617465")]; 
+        [purchase setValue:@(NO) forKey:OBF("69734261636B67726F756E64557064617465")]; 
+        [purchase setValue:@(YES) forKey:OBF("69735265646F776E6C6F6164")]; 
+        [purchase setValue:@(YES) forKey:OBF("637265617465734A6F6273")]; 
         
-        void *ssHandle = dlopen([OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F726553657276696365732E6672616D65776F726B2F53746F72655365727669636573") UTF8String], RTLD_LAZY);
-        if (ssHandle) {
-            Class SSAccountStoreClass = NSClassFromString(OBF("53534163636F756E7453746F7265")); 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-            id store = [SSAccountStoreClass performSelector:NSSelectorFromString(OBF("64656661756C7453746F7265"))]; 
-            id activeAccount = [store performSelector:NSSelectorFromString(OBF("6163746976654163636F756E74"))]; 
-            if (activeAccount) {
-                NSNumber *dsid = [activeAccount performSelector:NSSelectorFromString(OBF("756E697175654964656E746966696572"))]; 
-                if (dsid) {
-                    [purchase setValue:dsid forKey:OBF("6163636F756E744964656E746966696572")]; 
-                }
-            }
-#pragma clang diagnostic pop
-        }
-
         SEL dispSel = NSSelectorFromString(OBF("736574446973706C6179734F6E4C6F636B53637265656E3A"));
         if ([purchase respondsToSelector:dispSel]) {
             BOOL val = YES;
@@ -316,17 +301,20 @@
             [inv setSelector:startSel]; 
             [inv setArgument:&purchase atIndex:2];
             
-            // 🎯 核心逻辑：拦截失败（如缺失观察者、系统过低弹窗拦截），无缝自动切到 StoreKitUI 逻辑兜底！
+            // 🎯 【智能回退】如果静默购买抛出错误 (例如服务器弹出: 系统太旧需要兼容版本)
+            // 守护进程处理不了，马上退回 StoreKitUI 进行前端弹窗！
             void (^handler)(id, NSError*) = ^(id result, NSError *error) {
                 if (error) {
                     dispatch_async(dispatch_get_main_queue(), ^{
-                        [[ARDowngradeManager sharedManager] _fallback_installWithTrackID:trackId versionID:versionId];
+                        [self fallbackInstallWithTrackID:trackId versionID:versionId];
                     });
                 }
             };
             [inv setArgument:&handler atIndex:3]; 
             [inv invoke];
         }
+    } else {
+        [self fallbackInstallWithTrackID:trackId versionID:versionId];
     }
 }
 @end

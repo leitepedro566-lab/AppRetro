@@ -71,7 +71,9 @@
         if ([account respondsToSelector:localSel]) {
             NSMethodSignature *sig = [account methodSignatureForSelector:localSel];
             NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-            [inv setTarget:account]; [inv setSelector:localSel]; [inv invoke];
+            [inv setTarget:account]; 
+            [inv setSelector:localSel]; 
+            [inv invoke];
             [inv getReturnValue:&isLocal];
         }
         if (isLocal) continue;
@@ -88,7 +90,9 @@
         if ([account respondsToSelector:activeSel]) {
             NSMethodSignature *sig = [account methodSignatureForSelector:activeSel];
             NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-            [inv setTarget:account]; [inv setSelector:activeSel]; [inv invoke];
+            [inv setTarget:account]; 
+            [inv setSelector:activeSel]; 
+            [inv invoke];
             [inv getReturnValue:&isActive];
         }
         if (isActive) { activeEmail = name; }
@@ -144,8 +148,10 @@
         BOOL val = YES;
         NSMethodSignature *sig = [targetAccount methodSignatureForSelector:setActSel];
         NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-        [inv setTarget:targetAccount]; [inv setSelector:setActSel];
-        [inv setArgument:&val atIndex:2]; [inv invoke];
+        [inv setTarget:targetAccount]; 
+        [inv setSelector:setActSel];
+        [inv setArgument:&val atIndex:2]; 
+        [inv invoke];
     }
     
     NSString *prefStr = OBF("2F7661722F6D6F62696C652F4C6962726172792F507265666572656E6365732F636F6D2E73746F726573776974636865722E6163746976652E747874");
@@ -156,10 +162,12 @@
         BOOL verify = NO; id errorOut = nil;
         NSMethodSignature *sig = [store methodSignatureForSelector:saveSel];
         NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-        [inv setTarget:store]; [inv setSelector:saveSel];
+        [inv setTarget:store]; 
+        [inv setSelector:saveSel];
         [inv setArgument:&targetAccount atIndex:2];
         [inv setArgument:&verify atIndex:3];
-        [inv setArgument:&errorOut atIndex:4]; [inv invoke];
+        [inv setArgument:&errorOut atIndex:4]; 
+        [inv invoke];
     }
     
     Class SSDeviceClass = NSClassFromString(OBF("5353446576696365"));
@@ -204,7 +212,10 @@
             BOOL val = YES;
             NSMethodSignature *sig = [purchase methodSignatureForSelector:dispSel];
             NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-            [inv setTarget:purchase]; [inv setSelector:dispSel]; [inv setArgument:&val atIndex:2]; [inv invoke];
+            [inv setTarget:purchase]; 
+            [inv setSelector:dispSel]; 
+            [inv setArgument:&val atIndex:2]; 
+            [inv invoke];
         }
 
 #pragma clang diagnostic push
@@ -216,4 +227,14 @@
         if ([mgr respondsToSelector:startSel]) {
             NSMethodSignature *sig = [mgr methodSignatureForSelector:startSel];
             NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-            [inv setTarget:mgr]; [inv setSelector:startSel]; [inv setArgument:&purchase atIndex:2];
+            [inv setTarget:mgr]; 
+            [inv setSelector:startSel]; 
+            [inv setArgument:&purchase atIndex:2];
+            
+            void (^handler)(id, NSError*) = ^(id result, NSError *error) {};
+            [inv setArgument:&handler atIndex:3]; 
+            [inv invoke];
+        }
+    }
+}
+@end

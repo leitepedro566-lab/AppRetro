@@ -202,7 +202,7 @@
 #pragma clang diagnostic pop
     }
     
-    CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (__bridge CFStringRef)OBF("636F6D2E73746F726573776974636865722E6163636F756E74735F6368616E676564"), NULL, NULL, YES);
+    CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (__bridge CFStringRef)OBF("636F6D2E73746F7265737769746865722E6163636F756E74735F6368616E676564"), NULL, NULL, YES);
 }
 
 - (void)fallbackInstallWithTrackID:(long long)trackId versionID:(long long)versionId {
@@ -316,11 +316,43 @@
             [inv setSelector:startSel]; 
             [inv setArgument:&purchase atIndex:2];
             
-            // 🎯 彻底修复因未 copy 导致的底层执行崩溃，现在能 100% 接住被拦截失败的事件并呼出弹窗
             void (^handlerBlock)(id, NSError*) = ^(id result, NSError *error) {
                 if (error) {
                     dispatch_async(dispatch_get_main_queue(), ^{
-                        [self fallbackInstallWithTrackID:trackId versionID:versionId];
+                        BOOL isServerRejection = NO;
+                        NSString *realServerMessage = nil;
+                        
+                        if (error.userInfo[NSUnderlyingErrorKey]) {
+                            NSError *underlyingError = error.userInfo[NSUnderlyingErrorKey];
+                            NSDictionary *payload = underlyingError.userInfo[OBF("414D535365727665725061796C6F6164")]; 
+                            if (payload) {
+                                if (payload[OBF("637573746F6D65724D657373616765")]) { 
+                                    realServerMessage = payload[OBF("637573746F6D65724D657373616765")];
+                                    isServerRejection = YES;
+                                } else if (payload[OBF("6469616C6F67")] && payload[OBF("6469616C6F67")][OBF("6D657373616765")]) { 
+                                    realServerMessage = payload[OBF("6469616C6F67")][OBF("6D657373616765")];
+                                    isServerRejection = YES;
+                                }
+                            }
+                        }
+                        
+                        UIViewController *topVC = [UIApplication sharedApplication].windows.firstObject.rootViewController;
+                        while (topVC.presentedViewController) { topVC = topVC.presentedViewController; }
+                        
+                        if (isServerRejection && realServerMessage && topVC) {
+                            UIAlertController *alert = [UIAlertController alertControllerWithTitle:OBF("E4B88BE8BDBDE8A2ABE7B3BBE7BB9FE68B66E688AA") 
+                                                                                           message:realServerMessage 
+                                                                                    preferredStyle:UIAlertControllerStyleAlert];
+                            
+                            [alert addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]];
+                            [alert addAction:[UIAlertAction actionWithTitle:OBF("E5BCBAE588B653746F72654B6974E5859CE5BA95") style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) {
+                                [self fallbackInstallWithTrackID:trackId versionID:versionId];
+                            }]];
+                            
+                            [topVC presentViewController:alert animated:YES completion:nil];
+                        } else {
+                            [self fallbackInstallWithTrackID:trackId versionID:versionId];
+                        }
                     });
                 }
             };

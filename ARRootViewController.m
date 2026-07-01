@@ -26,10 +26,7 @@
     self.arSearchController = [[UISearchController alloc] initWithSearchResultsController:nil];
     self.arSearchController.searchResultsUpdater = self;
     self.arSearchController.obscuresBackgroundDuringPresentation = NO;
-    
-    // 🎯 顶栏搜索占位符修改为：“搜索”
     self.arSearchController.searchBar.placeholder = OBF("E6909CE7B4A2"); 
-    // 🎯 顶栏搜索右侧按钮 “Cancel” 修改为中文：“取消”
     [self.arSearchController.searchBar setValue:OBF("E58F96E6B688") forKey:OBF("63616E63656C427574746F6E54657874")];
     
     self.navigationItem.searchController = self.arSearchController;
@@ -216,7 +213,8 @@
         }
     };
 
-    UIAlertController *loading = [UIAlertController alertControllerWithTitle:OBF("E8AFB7E7A88DE58099") message:OBF("E6ADA3E59CA8E8AFB7E6B182E69C8DE58AA1E599A8E88EB7E58F96E78988E69CACE58897E8A1A82E2E2E") preferredStyle:UIAlertControllerStyleAlert];
+    // 🎯 提示文案变更为：“稍后”、“获取版本列表...”
+    UIAlertController *loading = [UIAlertController alertControllerWithTitle:OBF("E7A88DE5908E") message:OBF("E88EB7E58F96E78988E69CACE58897E8A1A82E2E2E") preferredStyle:UIAlertControllerStyleAlert];
     applyRoundedUI(loading);
     [self presentViewController:loading animated:YES completion:nil];
     

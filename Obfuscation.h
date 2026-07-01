@@ -20,7 +20,7 @@
 #define arSearchController             _t8M2bS4_
 #define appPhysicalPath                _s3K7zV6_
 
-// 3. Custom Methods - 彻底抹除所有自定义方法的特征签名（连协议方法也无影无踪）
+// 3. Custom Methods - 彻底抹除所有自定义方法的特征签名
 #define fetchTrackIDForBundleID        _a7B2c8D_
 #define fetchVersionsForTrackID        _e4F9g1H_
 #define verifyOwnershipForBundleID     _i6J3k5L_

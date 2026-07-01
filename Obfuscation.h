@@ -4,33 +4,34 @@
 
 #import <Foundation/Foundation.h>
 
-// 1. 类名极致视觉模糊 (随机 0, O, I, l 组合)
-#define ARAppDelegate           O0O00O0O
-#define ARDowngradeManager      O00OO00O
-#define ARRootViewController    OO000OO0
-#define ARVersionViewController O0O0O00O
+// 1. Classes - 彻底打乱类名，从 Mach-O 符号表中抹除所有明文类名特征
+#define ARAppDelegate                  _X8jL2mQ9pA_
+#define ARDowngradeManager             _P3kR7xN1cL_
+#define ARRootViewController           _V9aB4wY2zM_
+#define ARVersionViewController        _M6tH1kF8dJ_
 
-// 2. 核心内部公开/私有属性全量变态致盲
-#define bundleID                m_O0O0l1
-#define appName                 m_l1l1O0
-#define trackID                 m_1l1lO0
-#define versions                m_0O0Ol1
-#define arAllApps               m_I1l1I1
-#define arFilteredApps          m_ll1I1l
-#define arSearchController      m_l1I1I1
-#define loadInstalledApps       m_Ill111
-#define arOpenTGChannel         m_lI1l11
-#define appPhysicalPath         m_0O001l
+// 2. Properties & Ivars - 把所有属性变量变成绝对乱码符号
+#define bundleID                       _z9Q1wL3_
+#define appName                        _y4R8vB7_
+#define trackID                        _x2J5kN9_
+#define versions                       _w7P4mC2_
+#define arAllApps                      _v1H6tX5_
+#define arFilteredApps                 _u5D9gF1_
+#define arSearchController             _t8M2bS4_
+#define appPhysicalPath                _s3K7zV6_
 
-// 3. 所有核心方法调用重度致盲 (连方法签名也不放过)
-#define sharedManager           m_l111lI
-#define fetchTrackIDForBundleID m_lIl1I0
-#define fetchVersionsForTrackID m_l11I1l
-#define installAppWithTrackID   m_l1l11l
-#define verifyOwnershipForBundleID m_O10O0l
-#define executeAccountSwitchToName m_lO100l
-#define fallbackInstallWithTrackID m_l0O10l
-#define executeDowngradeProcessWithVersionStr m_01lO0O
+// 3. Custom Methods - 彻底抹除所有自定义方法的特征签名（连协议方法也无影无踪）
+#define fetchTrackIDForBundleID        _a7B2c8D_
+#define fetchVersionsForTrackID        _e4F9g1H_
+#define verifyOwnershipForBundleID     _i6J3k5L_
+#define executeAccountSwitchToName     _m8N2p4Q_
+#define installAppWithTrackID          _r1S7t9V_
+#define fallbackInstallWithTrackID     _w5X2y6Z_
+#define executeDowngradeProcessWithVersionStr _b3C8d1F_
+#define loadInstalledApps              _g5H2j9K_
+#define arOpenTGChannel                _l4M7n2P_
+#define sharedManager                  _q6R1s8T_
+#define recursiveFetchTrackID          _v3W9x4Y_
 
 // 4. 顶级内联安全脱壳机 + 干扰静态分析的花指令
 static __attribute__((always_inline)) inline NSString * _l1ll1l1O_(const char *hex) {

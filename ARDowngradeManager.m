@@ -23,7 +23,7 @@
             if ([results isKindOfClass:[NSArray class]] && results.count > 0) {
                 if (completion) completion([results.firstObject[OBF("747261636B4964")] longLongValue], nil); 
             } else {
-                if (completion) completion(0, [NSError errorWithDomain:@"Retro" code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E69CAAE7B9A2E68EB7E588B0E5BA94E794A820547261636B204944")}]);
+                if (completion) completion(0, [NSError errorWithDomain:OBF("526574726F") code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E69CAAE7B9A2E68EB7E588B0E5BA94E794A820547261636B204944")}]);
             }
         });
     }];
@@ -41,7 +41,7 @@
             if ([versionsArr isKindOfClass:[NSArray class]] && versionsArr.count > 0) {
                  if (completion) completion(versionsArr, nil);
             } else {
-                if (completion) completion(nil, [NSError errorWithDomain:@"Retro" code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E69CAAE7B9A2E68EB7E588B0E58E86E58FB2E78988E69CACE8AEB0E5BD95")}]);
+                if (completion) completion(nil, [NSError errorWithDomain:OBF("526574726F") code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E69CAAE7B9A2E68EB7E588B0E58E86E58FB2E78988E69CACE8AEB0E5BD95")}]);
             }
         });
     }];
@@ -185,14 +185,14 @@
     CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (__bridge CFStringRef)OBF("636F6D2E73746F726573776974636865722E6163636F756E74735F6368616E676564"), NULL, NULL, YES);
 }
 
-// 🎯 降级方案二 (兜底): StoreKitUI - 带有前端界面弹窗支持 (能接住iOS系统过低弹窗)
+// 🎯 降级方案二 (兜底): StoreKitUI - 带有前端界面弹窗支持 (能接住因版本太老/太高被拦截引发的系统弹窗)
 - (void)fallbackInstallWithTrackID:(long long)trackId versionID:(long long)versionId {
     NSString *skuiPath = OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F72654B697455492E6672616D65776F726B2F53746F72654B69745549");
     void *handle = dlopen([skuiPath UTF8String], RTLD_LAZY);
     if (!handle) return;
 
-    NSString *adamId = [NSString stringWithFormat:@"%lld", trackId];
-    NSString *appExtVrsId = [NSString stringWithFormat:@"%lld", versionId];
+    NSString *adamId = [NSString stringWithFormat:OBF("256C6C64"), trackId];
+    NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), versionId];
     
     NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
 
@@ -246,18 +246,18 @@
     }
 }
 
-// 🎯 降级方案一 (首选): AppStoreDaemon - 静默下载 (绕过普通密码弹窗)
+// 🎯 降级方案一 (首选): AppStoreDaemon - 优先走静默下载方式 (底层自动定性为无密码提示的系统更新 [UPD])
 - (void)installAppWithTrackID:(long long)trackId versionID:(long long)versionId bundleID:(NSString *)bundleID {
     NSString *daemonPath = OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F41707053746F72654461656D6F6E2E6672616D65776F726B2F41707053746F72654461656D6F6E");
     void *handle = dlopen([daemonPath UTF8String], RTLD_LAZY);
     if (!handle) {
-        // 环境不支持 Daemon，直接走兜底
+        // 环境无私有库支持 Daemon (低版本或被拦截)，无缝回退兜底
         [self fallbackInstallWithTrackID:trackId versionID:versionId];
         return;
     }
 
-    NSString *adamId = [NSString stringWithFormat:@"%lld", trackId];
-    NSString *appExtVrsId = [NSString stringWithFormat:@"%lld", versionId];
+    NSString *adamId = [NSString stringWithFormat:OBF("256C6C64"), trackId];
+    NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), versionId];
     
     // 参数配置
     NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
@@ -271,7 +271,7 @@
         [purchase setValue:bundleID forKey:OBF("62756E646C654944")]; 
         [purchase setValue:offerString forKey:OBF("627579506172616D6574657273")]; 
         
-        // 【关键】原生 ASD 静默下载，必须设为更新模式，跳过密码弹窗
+        // 【关键修复】原生 ASD 静默下载优先方式，必须设为更新模式，以此彻底跳过系统的购买指纹/密码弹窗
         [purchase setValue:@(YES) forKey:OBF("6973557064617465")]; 
         [purchase setValue:@(NO) forKey:OBF("69734261636B67726F756E64557064617465")]; 
         [purchase setValue:@(YES) forKey:OBF("69735265646F776E6C6F6164")]; 
@@ -301,8 +301,8 @@
             [inv setSelector:startSel]; 
             [inv setArgument:&purchase atIndex:2];
             
-            // 🎯 【智能回退】如果静默购买抛出错误 (例如服务器弹出: 系统太旧需要兼容版本)
-            // 守护进程处理不了，马上退回 StoreKitUI 进行前端弹窗！
+            // 🎯 【智能回退闭环验证】如果静默购买中途抛出错误 (例如该应用下载需要高于当前系统版本)
+            // ASD 守护进程处理不了拦截提示，立刻自动无缝退回 StoreKitUI 进行前端真实降级提示弹窗！
             void (^handler)(id, NSError*) = ^(id result, NSError *error) {
                 if (error) {
                     dispatch_async(dispatch_get_main_queue(), ^{

@@ -26,7 +26,12 @@
     self.arSearchController = [[UISearchController alloc] initWithSearchResultsController:nil];
     self.arSearchController.searchResultsUpdater = self;
     self.arSearchController.obscuresBackgroundDuringPresentation = NO;
-    self.arSearchController.searchBar.placeholder = OBF("E6909CE7B4A2E5BA94E794A8202853656172636829"); 
+    
+    // 🎯 顶栏搜索占位符修改为：“搜索”
+    self.arSearchController.searchBar.placeholder = OBF("E6909CE7B4A2"); 
+    // 🎯 顶栏搜索右侧按钮 “Cancel” 修改为中文：“取消”
+    [self.arSearchController.searchBar setValue:OBF("E58F96E6B688") forKey:OBF("63616E63656C427574746F6E54657874")];
+    
     self.navigationItem.searchController = self.arSearchController;
     self.definesPresentationContext = YES;
     self.navigationItem.hidesSearchBarWhenScrolling = NO;
@@ -136,8 +141,6 @@
     }
 #pragma clang diagnostic pop
     
-    // 闲置的 fullAppPath 和 bundleURL 已经从这里被抹除
-    
     cell.textLabel.text = name;
     cell.textLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightBold];
     cell.detailTextLabel.text = bundleIdStr; 
@@ -196,7 +199,6 @@
     SEL nameSel = NSSelectorFromString(OBF("6C6F63616C697A65644E616D65"));
     NSString *name = [proxy respondsToSelector:nameSel] ? [proxy performSelector:nameSel] : bundleIdStr;
     
-    // 我们在这里完整保留获取 bundleURL.path 的操作，以便传给下一个验证控制器
     NSURL *bundleURL = [proxy respondsToSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] ? [proxy performSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] : nil;
     NSString *fullAppPath = bundleURL.path;
 #pragma clang diagnostic pop

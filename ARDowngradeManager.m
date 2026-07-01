@@ -213,21 +213,44 @@
 }
 
 - (void)fallbackInstallWithTrackID:(long long)trackId versionID:(long long)versionId {
-    // 🎯 1. 确保核心底层库都已加载（StoreServices 与 StoreKitUI）
     void *ssHandle = dlopen([OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F726553657276696365732E6672616D65776F726B2F53746F72655365727669636573") UTF8String], RTLD_LAZY);
-    void *skuiHandle = dlopen([OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F72654B697455492E6672616D65776F726B2F53746F72654B69745549") UTF8String], RTLD_LAZY);
-    if (!ssHandle || !skuiHandle) return;
+    if (!ssHandle) return;
 
-    Class SSPurchaseClass = NSClassFromString(OBF("53535075726368617365")); // SSPurchase
-    Class SKUIItemStateCenterClass = NSClassFromString(OBF("534B55494974656D537461746543656E746572")); // SKUIItemStateCenter
+    Class SSPurchaseClass = NSClassFromString(OBF("53535075726368617365"));
+    Class SSPurchaseRequestClass = NSClassFromString(OBF("5353507572636861736552657175657374"));
     
-    if (SSPurchaseClass && SKUIItemStateCenterClass) {
+    if (SSPurchaseClass && SSPurchaseRequestClass) {
         id purchase = [[SSPurchaseClass alloc] init];
         
         NSString *adamId = [NSString stringWithFormat:OBF("256C6C64"), trackId];
         NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), versionId];
         NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D312668617341736B6564546F446F776E6C6F6164557064617465733D31"), adamId, appExtVrsId];
 
+        // 🎯 1. 抓取本地唯一的系统账号（彻底解决无账号时要求弹窗输入 Apple ID 的问题）
+        NSNumber *activeAccountID = nil;
+        Class SSAccountStoreClass = NSClassFromString(OBF("53534163636F756E7453746F7265"));
+        if (SSAccountStoreClass) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            id store = [SSAccountStoreClass performSelector:NSSelectorFromString(OBF("64656661756C7453746F7265"))];
+            id activeAccount = [store performSelector:NSSelectorFromString(OBF("6163746976654163636F756E74"))];
+            if (activeAccount) {
+                activeAccountID = [activeAccount performSelector:NSSelectorFromString(OBF("756E697175654964656E746966696572"))];
+            }
+#pragma clang diagnostic pop
+        }
+        
+        if (activeAccountID) {
+            SEL setAccSel = NSSelectorFromString(OBF("7365744163636F756E744964656E7469666965723A"));
+            if ([purchase respondsToSelector:setAccSel]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                [purchase performSelector:setAccSel withObject:activeAccountID];
+#pragma clang diagnostic pop
+            }
+        }
+
+        // 2. 注入 buyParameters
         SEL setBuyParamsSel = NSSelectorFromString(OBF("736574427579506172616D65746572733A"));
         if ([purchase respondsToSelector:setBuyParamsSel]) {
 #pragma clang diagnostic push
@@ -236,60 +259,56 @@
 #pragma clang diagnostic pop
         }
         
+        // 3. 用函数指针防 KVC 崩溃注入 long long 类型
         SEL setUniqueIdSel = NSSelectorFromString(OBF("736574556E697175654964656E7469666965723A"));
         if ([purchase respondsToSelector:setUniqueIdSel]) {
             void (*setUniqueId)(id, SEL, long long) = (void *)[purchase methodForSelector:setUniqueIdSel];
             setUniqueId(purchase, setUniqueIdSel, trackId);
         }
 
-        // 🎯 2. 同步注入与首选方案（ASDPurchase）相同的静默与免验证配置
-        NSArray *purchaseBoolSels = @[
-            OBF("73657449676E6F726573466F7263656450717373776F72645265737472696374696F6E3A"), // setIgnoresForcedPasswordRestriction:
-            OBF("73657450726561757468656E746963617465643A"), // setPreauthenticated:
-            OBF("736574536B6970536F6674776172654163636F756E74507265666C696768743A"), // setSkipSoftwareAccountPreflight:
-            OBF("736574437265617465734A6F62733A"), // setCreatesJobs:
-            OBF("73657443726561746573446F776E6C6F6164733A"), // setCreatesDownloads:
-            OBF("736574446973706C6179734F6E4C6F636B53637265656E3A") // setDisplaysOnLockScreen:
-        ];
-        
-        for (NSString *selStr in purchaseBoolSels) {
-            SEL s = NSSelectorFromString(selStr);
-            if ([purchase respondsToSelector:s]) {
-                BOOL val = YES;
-                NSMethodSignature *sig = [purchase methodSignatureForSelector:s];
+        // 🎯 4. 安全注入底层所有的 Bool 跳过验证标识，避免 1060 崩溃和 Auth 弹窗
+        void (^setBool)(id, NSString*, BOOL) = ^(id target, NSString *selStr, BOOL val) {
+            SEL sel = NSSelectorFromString(selStr);
+            if ([target respondsToSelector:sel]) {
+                NSMethodSignature *sig = [target methodSignatureForSelector:sel];
                 NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-                [inv setTarget:purchase]; 
-                [inv setSelector:s]; 
-                [inv setArgument:&val atIndex:2]; 
-                [inv invoke];
+                [inv setTarget:target]; [inv setSelector:sel]; [inv setArgument:&val atIndex:2]; [inv invoke];
             }
-        }
+        };
 
-        // 🎯 3. 终极修复：抛弃会引发 "1060" 无 Observer 崩溃的 SSPurchaseRequest
-        // 交由原生自带 Dialog 监听器的 StoreKitUI 直接执行！
-        SEL defaultCenterSel = NSSelectorFromString(OBF("64656661756C7443656E746572")); // defaultCenter
-        id center = [SKUIItemStateCenterClass performSelector:defaultCenterSel];
+        setBool(purchase, OBF("7365744261636B67726F756E6450757263686173653A"), YES); // setBackgroundPurchase:
+        setBool(purchase, OBF("73657449676E6F726573466F7263656450617373776F72645265737472696374696F6E3A"), YES); // setIgnoresForcedPasswordRestriction:
+        setBool(purchase, OBF("73657450726561757468656E746963617465643A"), YES); // setPreauthenticated:
+        setBool(purchase, OBF("736574536B6970536F6674776172654163636F756E74507265666C696768743A"), YES); // setSkipSoftwareAccountPreflight:
+        setBool(purchase, OBF("736574437265617465734A6F62733A"), YES); // setCreatesJobs:
+
+        id request = [SSPurchaseRequestClass alloc];
+        SEL initSel = NSSelectorFromString(OBF("696E6974576974685075726368617365733A"));
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        request = [request performSelector:initSel withObject:@[purchase]];
+#pragma clang diagnostic pop
         
-        if (center) {
-            // _performPurchases:hasBundlePurchase:withClientContext:completionBlock:
-            SEL performPurchasesSel = NSSelectorFromString(OBF("5F706572666F726D5075726368617365733A68617342756E646C6550757263686173653A77697468436C69656E74436F6E746578743A636F6D706C6574696F6E426C6F636B3A"));
-            if ([center respondsToSelector:performPurchasesSel]) {
-                NSArray *purchases = @[purchase];
-                BOOL hasBundle = NO;
-                id clientContext = nil;
-                void (^compBlock)(id) = ^(id result) {};
-                id copiedBlock = [compBlock copy];
-                
-                NSMethodSignature *sig = [center methodSignatureForSelector:performPurchasesSel];
-                NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-                [inv setTarget:center];
-                [inv setSelector:performPurchasesSel];
-                [inv setArgument:&purchases atIndex:2];
-                [inv setArgument:&hasBundle atIndex:3];
-                [inv setArgument:&clientContext atIndex:4];
-                [inv setArgument:&copiedBlock atIndex:5];
-                [inv retainArguments];
-                [inv invoke];
+        setBool(request, OBF("7365744261636B67726F756E64526571756573743A"), YES); // setBackgroundRequest:
+        setBool(request, OBF("7365744E6565647341757468656E7469636174696F6E3A"), NO); // setNeedsAuthentication:
+        setBool(request, OBF("73657453686F756C6456616C69646174655075726368617365733A"), NO); // setShouldValidatePurchases:
+
+        SEL startBlockSel = NSSelectorFromString(OBF("737461727457697468436F6D706C6574696F6E426C6F636B3A"));
+        if ([request respondsToSelector:startBlockSel]) {
+            void (^compBlock)(NSError*) = ^(NSError *error) {};
+            id copiedBlock = [compBlock copy];
+            
+            NSMethodSignature *sig = [request methodSignatureForSelector:startBlockSel];
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:request]; [inv setSelector:startBlockSel];
+            [inv setArgument:&copiedBlock atIndex:2]; [inv retainArguments]; [inv invoke];
+        } else {
+            SEL startSel = NSSelectorFromString(OBF("7374617274"));
+            if ([request respondsToSelector:startSel]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                [request performSelector:startSel];
+#pragma clang diagnostic pop
             }
         }
     }
@@ -306,32 +325,50 @@
     NSString *adamId = [NSString stringWithFormat:OBF("256C6C64"), trackId];
     NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), versionId];
     
-    NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
+    NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D312668617341736B6564546F446F776E6C6F6164557064617465733D31"), adamId, appExtVrsId];
 
     Class ASDPurchaseClass = NSClassFromString(OBF("4153445075726368617365"));
     Class ASDPurchaseManagerClass = NSClassFromString(OBF("41534450757263686173654D616E61676572"));
         
     if (ASDPurchaseClass && ASDPurchaseManagerClass) {
         id purchase = [[ASDPurchaseClass alloc] init];
+        
         [purchase setValue:@(trackId) forKey:OBF("6974656D4944")]; 
         [purchase setValue:bundleID forKey:OBF("62756E646C654944")]; 
         [purchase setValue:offerString forKey:OBF("627579506172616D6574657273")]; 
         
-        [purchase setValue:@(YES) forKey:OBF("6973557064617465")]; 
-        [purchase setValue:@(NO) forKey:OBF("69734261636B67726F756E64557064617465")]; 
-        [purchase setValue:@(YES) forKey:OBF("69735265646F776E6C6F6164")]; 
-        [purchase setValue:@(YES) forKey:OBF("637265617465734A6F6273")]; 
-        
-        SEL dispSel = NSSelectorFromString(OBF("736574446973706C6179734F6E4C6F636B53637265656E3A"));
-        if ([purchase respondsToSelector:dispSel]) {
-            BOOL val = YES;
-            NSMethodSignature *sig = [purchase methodSignatureForSelector:dispSel];
-            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-            [inv setTarget:purchase]; 
-            [inv setSelector:dispSel]; 
-            [inv setArgument:&val atIndex:2]; 
-            [inv invoke];
+        // 🎯 再次注入活跃账号，规避未知认证请求
+        NSNumber *activeAccountID = nil;
+        Class SSAccountStoreClass = NSClassFromString(OBF("53534163636F756E7453746F7265"));
+        if (SSAccountStoreClass) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            id store = [SSAccountStoreClass performSelector:NSSelectorFromString(OBF("64656661756C7453746F7265"))];
+            id activeAccount = [store performSelector:NSSelectorFromString(OBF("6163746976654163636F756E74"))];
+            if (activeAccount) {
+                activeAccountID = [activeAccount performSelector:NSSelectorFromString(OBF("756E697175654964656E746966696572"))];
+            }
+#pragma clang diagnostic pop
         }
+        if (activeAccountID) {
+            [purchase setValue:activeAccountID forKey:OBF("6163636F756E744964656E746966696572")];
+        }
+
+        // 🎯 安全注入，把所有会导致弹窗导致 1060 的开关全部彻底静默
+        void (^setBool)(id, NSString*, BOOL) = ^(id target, NSString *selStr, BOOL val) {
+            SEL sel = NSSelectorFromString(selStr);
+            if ([target respondsToSelector:sel]) {
+                NSMethodSignature *sig = [target methodSignatureForSelector:sel];
+                NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+                [inv setTarget:target]; [inv setSelector:sel]; [inv setArgument:&val atIndex:2]; [inv invoke];
+            }
+        };
+        
+        setBool(purchase, OBF("73657449735570646174653A"), YES); // setIsUpdate:
+        setBool(purchase, OBF("73657449734261636B67726F756E645570646174653A"), YES); // setIsBackgroundUpdate: -> 修复核心弹窗 1060 错误
+        setBool(purchase, OBF("7365744973436F6D7061746962696C6974795570646174653A"), YES); // setIsCompatibilityUpdate:
+        setBool(purchase, OBF("73657449735265646F776E6C6F61643A"), YES); // setIsRedownload:
+        setBool(purchase, OBF("736574437265617465734A6F62733A"), YES); // setCreatesJobs:
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"

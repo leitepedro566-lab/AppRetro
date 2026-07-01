@@ -1,5 +1,6 @@
 // ARDowngradeManager.m
 #import "ARDowngradeManager.h"
+#import <UIKit/UIKit.h>
 #import <dlfcn.h>
 
 @interface ARDowngradeManager ()

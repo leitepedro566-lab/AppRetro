@@ -185,6 +185,73 @@
     CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (__bridge CFStringRef)OBF("636F6D2E73746F726573776974636865722E6163636F756E74735F6368616E676564"), NULL, NULL, YES);
 }
 
+// 🎯 核心兜底函数：彻底混淆的 StoreKitUI 调用。它能够唤起 iOS 系统的原生对话框
+- (void)_fallback_installWithTrackID:(long long)trackId versionID:(long long)versionId {
+    // 动态加载 StoreKitUI: /System/Library/PrivateFrameworks/StoreKitUI.framework/StoreKitUI
+    NSString *skuiPath = OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F72654B697455492E6672616D65776F726B2F53746F72654B69745549");
+    void *handle = dlopen([skuiPath UTF8String], RTLD_LAZY);
+    if (!handle) return;
+
+    NSString *adamId = [NSString stringWithFormat:@"%lld", trackId];
+    NSString *appExtVrsId = [NSString stringWithFormat:@"%lld", versionId];
+    
+    // 参数字符串: productType=C&price=0&salableAdamId=%@&pricingParameters=pricingParameter&appExtVrsId=%@&clientBuyId=1&installed=0&trolled=1
+    NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
+
+    // buyParams 和 _itemOffer
+    NSDictionary *offerDict = @{OBF("627579506172616D73"): offerString}; 
+    NSDictionary *itemDict = @{OBF("5F6974656D4F66666572"): adamId};
+
+    // SKUIItemOffer, SKUIItem, SKUIItemStateCenter, SKUIClientContext
+    Class SKUIItemOfferClass = NSClassFromString(OBF("534B55494974656D4F66666572"));
+    Class SKUIItemClass = NSClassFromString(OBF("534B55494974656D"));
+    Class SKUIItemStateCenterClass = NSClassFromString(OBF("534B55494974656D537461746543656E746572"));
+    Class SKUIClientContextClass = NSClassFromString(OBF("534B5549436C69656E74436F6E74657874"));
+
+    if (SKUIItemOfferClass && SKUIItemClass && SKUIItemStateCenterClass) {
+        id offer = [SKUIItemOfferClass alloc];
+        id item = [SKUIItemClass alloc];
+        // initWithLookupDictionary:
+        SEL initSel = NSSelectorFromString(OBF("696E6974576974684C6F6F6B757044696374696F6E6172793A"));
+        
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        offer = [offer performSelector:initSel withObject:offerDict];
+        item = [item performSelector:initSel withObject:itemDict];
+#pragma clang diagnostic pop
+
+        if (!item) return;
+
+        [item setValue:offer forKey:OBF("5F6974656D4F66666572")]; 
+        [item setValue:OBF("696F73536F667477617265") forKey:OBF("5F6974656D4B696E64537472696E67")]; // iosSoftware -> _itemKindString
+        [item setValue:@(versionId) forKey:OBF("5F76657273696F6E4964656E746966696572")]; // _versionIdentifier
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        id center = [SKUIItemStateCenterClass performSelector:NSSelectorFromString(OBF("64656661756C7443656E746572"))]; // defaultCenter
+        id context = [SKUIClientContextClass performSelector:NSSelectorFromString(OBF("64656661756C74436F6E74657874"))]; // defaultContext
+        NSArray *items = @[item];
+        id purchases = [center performSelector:NSSelectorFromString(OBF("5F6E6577507572636861736573576974684974656D733A")) withObject:items]; // _newPurchasesWithItems:
+#pragma clang diagnostic pop
+
+        // _performPurchases:hasBundlePurchase:withClientContext:completionBlock:
+        SEL performSel = NSSelectorFromString(OBF("5F706572666F726D5075726368617365733A68617342756E646C6550757263686173653A77697468436C69656E74436F6E746578743A636F6D706C6574696F6E426C6F636B3A"));
+        if ([center respondsToSelector:performSel]) {
+            NSMethodSignature *sig = [center methodSignatureForSelector:performSel];
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:center];
+            [inv setSelector:performSel];
+            [inv setArgument:&purchases atIndex:2];
+            BOOL hasBundle = NO;
+            [inv setArgument:&hasBundle atIndex:3];
+            [inv setArgument:&context atIndex:4];
+            void (^block)(id) = ^(id arg1){};
+            [inv setArgument:&block atIndex:5];
+            [inv invoke];
+        }
+    }
+}
+
 - (void)installAppWithTrackID:(long long)trackId versionID:(long long)versionId bundleID:(NSString *)bundleID {
     NSString *daemonPath = OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F41707053746F72654461656D6F6E2E6672616D65776F726B2F41707053746F72654461656D6F6E");
     void *handle = dlopen([daemonPath UTF8String], RTLD_LAZY);
@@ -193,9 +260,8 @@
     NSString *adamId = [NSString stringWithFormat:@"%lld", trackId];
     NSString *appExtVrsId = [NSString stringWithFormat:@"%lld", versionId];
     
-    // 🎯 终极杀招：欺骗服务器为免密更新 (productType=U)，并附加 hasAskedToDownloadPreviousVersion 和 Redownload 参数！
-    // 原始字符串: productType=U&price=0&salableAdamId=%@&pricingParameters=pricingParameter&appExtVrsId=%@&clientBuyId=1&installed=1&trolled=1&isRedownload=1&hasAskedToDownloadPreviousVersion=true
-    NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D552670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D312674726F6C6C65643D312669735265646F776E6C6F61643D312668617341736B6564546F446F776E6C6F616450726576696F757356657273696F6E3D74727565"), adamId, appExtVrsId];
+    // ASD 请求中附带 hasAskedToDownloadPreviousVersion=true，大多数情况下直接绕过免密
+    NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D25402668617341736B6564546F446F776E6C6F616450726576696F757356657273696F6E3D7472756526636C69656E7442757949643D312669735265646F776E6C6F61643D7472756526696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
 
     Class ASDPurchaseClass = NSClassFromString(OBF("4153445075726368617365"));
     Class ASDPurchaseManagerClass = NSClassFromString(OBF("41534450757263686173654D616E61676572"));
@@ -208,11 +274,8 @@
         
         [purchase setValue:@(YES) forKey:OBF("69735265646F776E6C6F6164")]; // isRedownload = YES
         [purchase setValue:@(YES) forKey:OBF("637265617465734A6F6273")]; // createsJobs = YES
+        [purchase setValue:@(NO) forKey:OBF("6973557064617465")]; // isUpdate = NO
         
-        // 【关键防御】：如果开启 isUpdate，必须走 Update 接口，如果 iOS 版本不符会强杀，所以关掉，迫使底层执行免密购买/恢复旧版。
-        [purchase setValue:@(NO) forKey:OBF("6973557064617465")]; 
-        
-        // 【高级注入】：抓取系统当前的 Apple ID (DSID) 并注入请求，消除服务器验证需要！
         void *ssHandle = dlopen([OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F726553657276696365732E6672616D65776F726B2F53746F72655365727669636573") UTF8String], RTLD_LAZY);
         if (ssHandle) {
             Class SSAccountStoreClass = NSClassFromString(OBF("53534163636F756E7453746F7265")); 
@@ -223,7 +286,6 @@
             if (activeAccount) {
                 NSNumber *dsid = [activeAccount performSelector:NSSelectorFromString(OBF("756E697175654964656E746966696572"))]; 
                 if (dsid) {
-                    // 绑定 DSID，告知服务器“我是我自己发起的免密恢复，并且我接受兼容版本”。
                     [purchase setValue:dsid forKey:OBF("6163636F756E744964656E746966696572")]; 
                 }
             }
@@ -254,7 +316,14 @@
             [inv setSelector:startSel]; 
             [inv setArgument:&purchase atIndex:2];
             
-            void (^handler)(id, NSError*) = ^(id result, NSError *error) {};
+            // 🎯 核心逻辑：拦截失败（如缺失观察者、系统过低弹窗拦截），无缝自动切到 StoreKitUI 逻辑兜底！
+            void (^handler)(id, NSError*) = ^(id result, NSError *error) {
+                if (error) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [[ARDowngradeManager sharedManager] _fallback_installWithTrackID:trackId versionID:versionId];
+                    });
+                }
+            };
             [inv setArgument:&handler atIndex:3]; 
             [inv invoke];
         }

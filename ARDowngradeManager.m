@@ -226,12 +226,26 @@
         
         NSString *adamId = [NSString stringWithFormat:OBF("256C6C64"), trackId];
         NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), versionId];
-        
         NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D312668617341736B6564546F446F776E6C6F6164557064617465733D31"), adamId, appExtVrsId];
 
-        [purchase setValue:offerString forKey:OBF("627579506172616D6574657273")]; 
-        [purchase setValue:@(trackId) forKey:OBF("6974656D4964656E746966696572")]; 
+        // 🎯 修复崩溃：放弃 KVC，改用底层的方法签名赋值
+        SEL setBuyParamsSel = NSSelectorFromString(OBF("736574427579506172616D65746572733A"));
+        if ([purchase respondsToSelector:setBuyParamsSel]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            [purchase performSelector:setBuyParamsSel withObject:offerString];
+#pragma clang diagnostic pop
+        }
         
+        SEL setItemIdSel = NSSelectorFromString(OBF("7365744974656D4964656E7469666965723A"));
+        if ([purchase respondsToSelector:setItemIdSel]) {
+            NSNumber *trackIdNum = @(trackId);
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            [purchase performSelector:setItemIdSel withObject:trackIdNum];
+#pragma clang diagnostic pop
+        }
+
         SEL setBackgroundSel = NSSelectorFromString(OBF("7365744261636B67726F756E6450757263686173653A"));
         if ([purchase respondsToSelector:setBackgroundSel]) {
             BOOL val = YES;

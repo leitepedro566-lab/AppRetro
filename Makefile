@@ -13,9 +13,8 @@ APPLICATION_NAME = AppRetro
 AppRetro_FILES = main.m ARAppDelegate.m ARRootViewController.m ARVersionViewController.m ARDowngradeManager.m
 AppRetro_FRAMEWORKS = UIKit Foundation CoreGraphics
 
-# 🎯 自动包含混淆头文件，并剥离符号表
 AppRetro_CFLAGS = -fobjc-arc -fvisibility=hidden -include Obfuscation.h
-AppRetro_LDFLAGS = -weak_framework MobileCoreServices -Wl,-S -Wl,-x -Wl,-dead_strip
+AppRetro_LDFLAGS = -weak_framework MobileCoreServices -weak_framework StoreServices -Wl,-S -Wl,-x -Wl,-dead_strip
 
 AppRetro_CODESIGN_FLAGS = -S$(APPLICATION_NAME).entitlements
 

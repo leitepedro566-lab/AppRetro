@@ -5,7 +5,9 @@
 + (instancetype)sharedManager;
 - (void)fetchTrackIDForBundleID:(NSString *)bundleID completion:(void(^)(long long trackId, NSError *error))completion;
 - (void)fetchVersionsForTrackID:(long long)trackId completion:(void(^)(NSArray *versions, NSError *error))completion;
-
-// 统一入口，内部自动处理静默优先与弹窗兜底
 - (void)installAppWithTrackID:(long long)trackId versionID:(long long)versionId bundleID:(NSString *)bundleID;
+
+// 新增：账号合规验证与一键安全换号控制层接口
+- (void)verifyOwnershipForBundleID:(NSString *)bundleID appPath:(NSString *)appPath completion:(void(^)(BOOL isMatch, NSString *purchaser, NSString *active, NSArray *allAccounts))completion;
+- (void)executeAccountSwitchToName:(NSString *)targetName;
 @end

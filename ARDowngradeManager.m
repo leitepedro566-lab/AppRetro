@@ -48,21 +48,25 @@
     [task resume];
 }
 
-// 🎯 公司级加重防护：全面隔离并验证应用归属权 (避免越狱环境特征被搜出)
 - (void)verifyOwnershipForBundleID:(NSString *)bundleID appPath:(NSString *)appPath completion:(void(^)(BOOL, NSString *, NSString *, NSArray *))completion {
-    // 动态加载 StoreServices 私有库
     void *ssHandle = dlopen([OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F726553657276696365732E6672616D65776F726B2F53746F72655365727669636573") UTF8String], RTLD_LAZY);
     if (!ssHandle || !completion) { if (completion) completion(YES, nil, nil, nil); return; }
     
     Class SSAccountStoreClass = NSClassFromString(OBF("53534163636F756E7453746F7265"));
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
     id store = [SSAccountStoreClass performSelector:NSSelectorFromString(OBF("64656661756C7453746F7265"))];
-    NSArray *accounts = [store performSelector:NSSelectorFromString(OBF("616C6C4163636F756E7473")) ?: NSSelectorFromString(OBF("6163636F756E7473"))];
+    SEL allAccSel = NSSelectorFromString(OBF("616C6C4163636F756E7473"));
+    SEL accSel = NSSelectorFromString(OBF("6163636F756E7473"));
+    NSArray *accounts = [store respondsToSelector:allAccSel] ? [store performSelector:allAccSel] : [store performSelector:accSel];
+#pragma clang diagnostic pop
     
     NSString *activeEmail = nil;
     NSMutableArray *allLocalNames = [NSMutableArray array];
     
     for (id account in accounts) {
-        SEL localSel = NSSelectorFromString(OBF("69734C6F63616C4163636F756E74")); // isLocalAccount
+        SEL localSel = NSSelectorFromString(OBF("69734C6F63616C4163636F756E74")); 
         BOOL isLocal = NO;
         if ([account respondsToSelector:localSel]) {
             NSMethodSignature *sig = [account methodSignatureForSelector:localSel];
@@ -72,10 +76,14 @@
         }
         if (isLocal) continue;
         
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
         NSString *name = [account performSelector:NSSelectorFromString(OBF("6163636F756E744E616D65"))];
+#pragma clang diagnostic pop
+
         if (name) [allLocalNames addObject:name];
         
-        SEL activeSel = NSSelectorFromString(OBF("6973416374697665")); // isActive
+        SEL activeSel = NSSelectorFromString(OBF("6973416374697665")); 
         BOOL isActive = NO;
         if ([account respondsToSelector:activeSel]) {
             NSMethodSignature *sig = [account methodSignatureForSelector:activeSel];
@@ -86,9 +94,8 @@
         if (isActive) { activeEmail = name; }
     }
     
-    // 定位 iTunesMetadata.plist 物理路径
     NSString *appParentDir = [appPath stringByDeletingLastPathComponent];
-    NSString *metadataPath = [appParentDir stringByAppendingPathComponent:OBF("6954756E65734D657461646174612E706C697374")]; // "iTunesMetadata.plist"
+    NSString *metadataPath = [appParentDir stringByAppendingPathComponent:OBF("6954756E65734D657461646174612E706C697374")]; 
     NSString *purchaserEmail = nil;
     
     if ([[NSFileManager defaultManager] fileExistsAtPath:metadataPath]) {
@@ -99,33 +106,39 @@
     }
     
     if (!purchaserEmail || !activeEmail) {
-        completion(YES, purchaserEmail, activeEmail, allLocalNames); // 缺少凭证或未登录时，直接放行让底层Daemon报错
+        completion(YES, purchaserEmail, activeEmail, allLocalNames); 
         return;
     }
     
     if ([activeEmail caseInsensitiveCompare:purchaserEmail] == NSOrderedSame) {
         completion(YES, purchaserEmail, activeEmail, allLocalNames);
     } else {
-        completion(NO, purchaserEmail, activeEmail, allLocalNames); // 账号不匹配，返回控制链触发切号界面
+        completion(NO, purchaserEmail, activeEmail, allLocalNames); 
     }
 }
 
-// 🎯 全 Invocation 运行时无感激活与存储账号切换
 - (void)executeAccountSwitchToName:(NSString *)targetName {
     Class SSAccountStoreClass = NSClassFromString(OBF("53534163636F756E7453746F7265"));
+    
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
     id store = [SSAccountStoreClass performSelector:NSSelectorFromString(OBF("64656661756C7453746F7265"))];
     NSArray *accounts = [store performSelector:NSSelectorFromString(OBF("6163636F756E7473"))];
+#pragma clang diagnostic pop
     
     id targetAccount = nil;
     for (id account in accounts) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
         NSString *name = [account performSelector:NSSelectorFromString(OBF("6163636F756E744E616D65"))];
+#pragma clang diagnostic pop
+
         if ([name caseInsensitiveCompare:targetName] == NSOrderedSame) {
             targetAccount = account; break;
         }
     }
     if (!targetAccount) return;
     
-    // 1. 设置 setActive = YES
     SEL setActSel = NSSelectorFromString(OBF("7365744163746976653A"));
     if ([targetAccount respondsToSelector:setActSel]) {
         BOOL val = YES;
@@ -135,11 +148,9 @@
         [inv setArgument:&val atIndex:2]; [inv invoke];
     }
     
-    // 2. 写入本地 Preferences 强力隔离缓存
     NSString *prefStr = OBF("2F7661722F6D6F62696C652F4C6962726172792F507265666572656E6365732F636F6D2E73746F726573776974636865722E6163746976652E747874");
     [targetName writeToFile:prefStr atomically:YES encoding:NSUTF8StringEncoding error:nil];
     
-    // 3. 执行 saveAccount:verifyCredentials:error:
     SEL saveSel = NSSelectorFromString(OBF("736176654163636F756E743A76657269667943726564656E7469616C733A6572726F723A"));
     if ([store respondsToSelector:saveSel]) {
         BOOL verify = NO; id errorOut = nil;
@@ -151,20 +162,18 @@
         [inv setArgument:&errorOut atIndex:4]; [inv invoke];
     }
     
-    // 4. 通知当前 SSDevice 刷新 StoreFront 标识符环境
     Class SSDeviceClass = NSClassFromString(OBF("5353446576696365"));
     if (SSDeviceClass) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
         id currentDev = [SSDeviceClass performSelector:NSSelectorFromString(OBF("63757272656E74446576696365"))];
         SEL reloadSel = NSSelectorFromString(OBF("72656C6F616453746F726546726F6E744964656E746966696572"));
         if ([currentDev respondsToSelector:reloadSel]) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
             [currentDev performSelector:reloadSel];
-#pragma clang diagnostic pop
         }
+#pragma clang diagnostic pop
     }
     
-    // 5. 触发 Darwin 全局广播重载事件
     CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (__bridge CFStringRef)OBF("636F6D2E73746F726573776974636865722E6163636F756E74735F6368616E676564"), NULL, NULL, YES);
 }
 
@@ -208,9 +217,3 @@
             NSMethodSignature *sig = [mgr methodSignatureForSelector:startSel];
             NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
             [inv setTarget:mgr]; [inv setSelector:startSel]; [inv setArgument:&purchase atIndex:2];
-            void (^handler)(id, NSError*) = ^(id result, NSError *error) {};
-            [inv setArgument:&handler atIndex:3]; [inv invoke];
-        }
-    }
-}
-@end

@@ -23,7 +23,7 @@
             if ([results isKindOfClass:[NSArray class]] && results.count > 0) {
                 if (completion) completion([results.firstObject[OBF("747261636B4964")] longLongValue], nil); 
             } else {
-                if (completion) completion(0, [NSError errorWithDomain:@"Retro" code:404 userInfo:@{NSLocalizedDescriptionKey: @"未找到应用的 Track ID"}]);
+                if (completion) completion(0, [NSError errorWithDomain:@"Retro" code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E69CAAE7B9A2E68EB7E588B0E5BA94E794A820547261636B204944")}]);
             }
         });
     }];
@@ -39,13 +39,133 @@
             NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
             NSArray *versionsArr = json[OBF("64617461")]; 
             if ([versionsArr isKindOfClass:[NSArray class]] && versionsArr.count > 0) {
-                if (completion) completion(versionsArr, nil);
+                 if (completion) completion(versionsArr, nil);
             } else {
-                if (completion) completion(nil, [NSError errorWithDomain:@"Retro" code:404 userInfo:@{NSLocalizedDescriptionKey: @"未找到历史版本记录"}]);
+                if (completion) completion(nil, [NSError errorWithDomain:@"Retro" code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E69CAAE7B9A2E68EB7E588B0E58E86E58FB2E78988E69CACE8AEB0E5BD95")}]);
             }
         });
     }];
     [task resume];
+}
+
+// 🎯 公司级加重防护：全面隔离并验证应用归属权 (避免越狱环境特征被搜出)
+- (void)verifyOwnershipForBundleID:(NSString *)bundleID appPath:(NSString *)appPath completion:(void(^)(BOOL, NSString *, NSString *, NSArray *))completion {
+    // 动态加载 StoreServices 私有库
+    void *ssHandle = dlopen([OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F726553657276696365732E6672616D65776F726B2F53746F72655365727669636573") UTF8String], RTLD_LAZY);
+    if (!ssHandle || !completion) { if (completion) completion(YES, nil, nil, nil); return; }
+    
+    Class SSAccountStoreClass = NSClassFromString(OBF("53534163636F756E7453746F7265"));
+    id store = [SSAccountStoreClass performSelector:NSSelectorFromString(OBF("64656661756C7453746F7265"))];
+    NSArray *accounts = [store performSelector:NSSelectorFromString(OBF("616C6C4163636F756E7473")) ?: NSSelectorFromString(OBF("6163636F756E7473"))];
+    
+    NSString *activeEmail = nil;
+    NSMutableArray *allLocalNames = [NSMutableArray array];
+    
+    for (id account in accounts) {
+        SEL localSel = NSSelectorFromString(OBF("69734C6F63616C4163636F756E74")); // isLocalAccount
+        BOOL isLocal = NO;
+        if ([account respondsToSelector:localSel]) {
+            NSMethodSignature *sig = [account methodSignatureForSelector:localSel];
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:account]; [inv setSelector:localSel]; [inv invoke];
+            [inv getReturnValue:&isLocal];
+        }
+        if (isLocal) continue;
+        
+        NSString *name = [account performSelector:NSSelectorFromString(OBF("6163636F756E744E616D65"))];
+        if (name) [allLocalNames addObject:name];
+        
+        SEL activeSel = NSSelectorFromString(OBF("6973416374697665")); // isActive
+        BOOL isActive = NO;
+        if ([account respondsToSelector:activeSel]) {
+            NSMethodSignature *sig = [account methodSignatureForSelector:activeSel];
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:account]; [inv setSelector:activeSel]; [inv invoke];
+            [inv getReturnValue:&isActive];
+        }
+        if (isActive) { activeEmail = name; }
+    }
+    
+    // 定位 iTunesMetadata.plist 物理路径
+    NSString *appParentDir = [appPath stringByDeletingLastPathComponent];
+    NSString *metadataPath = [appParentDir stringByAppendingPathComponent:OBF("6954756E65734D657461646174612E706C697374")]; // "iTunesMetadata.plist"
+    NSString *purchaserEmail = nil;
+    
+    if ([[NSFileManager defaultManager] fileExistsAtPath:metadataPath]) {
+        NSDictionary *plist = [NSDictionary dictionaryWithContentsOfFile:metadataPath];
+        NSDictionary *dlInfo = plist[OBF("636F6D2E6170706C652E6954756E657353746F72652E646F776E6C6F6B7570496E666F")] ?: plist[OBF("636F6D2E6170706C652E6954756E657353746F72652E646F776E6C6F6164496E666F")];
+        NSDictionary *accInfo = dlInfo[OBF("6163636F756E74496E666F")];
+        purchaserEmail = accInfo[OBF("4170706C654944")];
+    }
+    
+    if (!purchaserEmail || !activeEmail) {
+        completion(YES, purchaserEmail, activeEmail, allLocalNames); // 缺少凭证或未登录时，直接放行让底层Daemon报错
+        return;
+    }
+    
+    if ([activeEmail caseInsensitiveCompare:purchaserEmail] == NSOrderedSame) {
+        completion(YES, purchaserEmail, activeEmail, allLocalNames);
+    } else {
+        completion(NO, purchaserEmail, activeEmail, allLocalNames); // 账号不匹配，返回控制链触发切号界面
+    }
+}
+
+// 🎯 全 Invocation 运行时无感激活与存储账号切换
+- (void)executeAccountSwitchToName:(NSString *)targetName {
+    Class SSAccountStoreClass = NSClassFromString(OBF("53534163636F756E7453746F7265"));
+    id store = [SSAccountStoreClass performSelector:NSSelectorFromString(OBF("64656661756C7453746F7265"))];
+    NSArray *accounts = [store performSelector:NSSelectorFromString(OBF("6163636F756E7473"))];
+    
+    id targetAccount = nil;
+    for (id account in accounts) {
+        NSString *name = [account performSelector:NSSelectorFromString(OBF("6163636F756E744E616D65"))];
+        if ([name caseInsensitiveCompare:targetName] == NSOrderedSame) {
+            targetAccount = account; break;
+        }
+    }
+    if (!targetAccount) return;
+    
+    // 1. 设置 setActive = YES
+    SEL setActSel = NSSelectorFromString(OBF("7365744163746976653A"));
+    if ([targetAccount respondsToSelector:setActSel]) {
+        BOOL val = YES;
+        NSMethodSignature *sig = [targetAccount methodSignatureForSelector:setActSel];
+        NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+        [inv setTarget:targetAccount]; [inv setSelector:setActSel];
+        [inv setArgument:&val atIndex:2]; [inv invoke];
+    }
+    
+    // 2. 写入本地 Preferences 强力隔离缓存
+    NSString *prefStr = OBF("2F7661722F6D6F62696C652F4C6962726172792F507265666572656E6365732F636F6D2E73746F726573776974636865722E6163746976652E747874");
+    [targetName writeToFile:prefStr atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    
+    // 3. 执行 saveAccount:verifyCredentials:error:
+    SEL saveSel = NSSelectorFromString(OBF("736176654163636F756E743A76657269667943726564656E7469616C733A6572726F723A"));
+    if ([store respondsToSelector:saveSel]) {
+        BOOL verify = NO; id errorOut = nil;
+        NSMethodSignature *sig = [store methodSignatureForSelector:saveSel];
+        NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+        [inv setTarget:store]; [inv setSelector:saveSel];
+        [inv setArgument:&targetAccount atIndex:2];
+        [inv setArgument:&verify atIndex:3];
+        [inv setArgument:&errorOut atIndex:4]; [inv invoke];
+    }
+    
+    // 4. 通知当前 SSDevice 刷新 StoreFront 标识符环境
+    Class SSDeviceClass = NSClassFromString(OBF("5353446576696365"));
+    if (SSDeviceClass) {
+        id currentDev = [SSDeviceClass performSelector:NSSelectorFromString(OBF("63757272656E74446576696365"))];
+        SEL reloadSel = NSSelectorFromString(OBF("72656C6F616453746F726546726F6E744964656E746966696572"));
+        if ([currentDev respondsToSelector:reloadSel]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            [currentDev performSelector:reloadSel];
+#pragma clang diagnostic pop
+        }
+    }
+    
+    // 5. 触发 Darwin 全局广播重载事件
+    CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (__bridge CFStringRef)OBF("636F6D2E73746F726573776974636865722E6163636F756E74735F6368616E676564"), NULL, NULL, YES);
 }
 
 - (void)installAppWithTrackID:(long long)trackId versionID:(long long)versionId bundleID:(NSString *)bundleID {
@@ -73,11 +193,9 @@
         SEL dispSel = NSSelectorFromString(OBF("736574446973706C6179734F6E4C6F636B53637265656E3A"));
         if ([purchase respondsToSelector:dispSel]) {
             BOOL val = YES;
-            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:[purchase methodSignatureForSelector:dispSel]];
-            [inv setTarget:purchase];
-            [inv setSelector:dispSel];
-            [inv setArgument:&val atIndex:2];
-            [inv invoke];
+            NSMethodSignature *sig = [purchase methodSignatureForSelector:dispSel];
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:purchase]; [inv setSelector:dispSel]; [inv setArgument:&val atIndex:2]; [inv invoke];
         }
 
 #pragma clang diagnostic push
@@ -89,13 +207,9 @@
         if ([mgr respondsToSelector:startSel]) {
             NSMethodSignature *sig = [mgr methodSignatureForSelector:startSel];
             NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-            [inv setTarget:mgr];
-            [inv setSelector:startSel];
-            [inv setArgument:&purchase atIndex:2];
-            
+            [inv setTarget:mgr]; [inv setSelector:startSel]; [inv setArgument:&purchase atIndex:2];
             void (^handler)(id, NSError*) = ^(id result, NSError *error) {};
-            [inv setArgument:&handler atIndex:3];
-            [inv invoke];
+            [inv setArgument:&handler atIndex:3]; [inv invoke];
         }
     }
 }

@@ -206,15 +206,31 @@
     CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (__bridge CFStringRef)OBF("636F6D2E73746F7265737769746865722E6163636F756E74735F6368616E676564"), NULL, NULL, YES);
 }
 
-// 🎯 全局统一使用 AppStoreDaemon 发起系统级静默购买，彻底抛弃 SKUI 回退
+// 🎯 全局统一使用 AppStoreDaemon 发起系统级购买，彻底抛弃老旧的 StoreServices 回退
 - (void)installAppWithTrackID:(long long)trackId versionID:(long long)versionId bundleID:(NSString *)bundleID {
+    // AppStoreDaemon 在 iOS 14-17 均可用
     NSString *daemonPath = OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F41707053746F72654461656D6F6E2E6672616D65776F726B2F41707053746F72654461656D6F6E"); // /System/Library/PrivateFrameworks/AppStoreDaemon.framework/AppStoreDaemon
     void *handle = dlopen([daemonPath UTF8String], RTLD_LAZY);
     if (!handle) return;
 
     NSString *adamId = [NSString stringWithFormat:OBF("256C6C64"), trackId];
     NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), versionId];
-    NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
+    
+    // 🎯 补齐了最后一个关键参数 installedSoftwareRating=100，完全 1:1 复刻竞品抓包内容
+    NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D3126696E7374616C6C6564536F667477617265526174696E673D313030"), adamId, appExtVrsId];
+
+    NSNumber *currentDSID = nil;
+    Class SSAccountStoreClass = NSClassFromString(OBF("53534163636F756E7453746F7265")); 
+    if (SSAccountStoreClass) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        id store = [SSAccountStoreClass performSelector:NSSelectorFromString(OBF("64656661756C7453746F7265"))]; 
+        id activeAcc = [store performSelector:NSSelectorFromString(OBF("6163746976654163636F756E74"))]; 
+        if (activeAcc) {
+            currentDSID = [activeAcc performSelector:NSSelectorFromString(OBF("756E697175654964656E746966696572"))]; 
+        }
+#pragma clang diagnostic pop
+    }
 
     Class ASDPurchaseClass = NSClassFromString(OBF("4153445075726368617365")); // ASDPurchase
     Class ASDPurchaseManagerClass = NSClassFromString(OBF("41534450757263686173654D616E61676572")); // ASDPurchaseManager
@@ -222,26 +238,20 @@
     if (ASDPurchaseClass && ASDPurchaseManagerClass) {
         id purchase = [[ASDPurchaseClass alloc] init];
         [purchase setValue:@(trackId) forKey:OBF("6974656D4944")]; // itemID
+        // 🎯 这就是为什么必须要用 ASDPurchase 的原因：它能够向 InstallCoordination 传递 bundleID
         [purchase setValue:bundleID forKey:OBF("62756E646C654944")]; // bundleID
         [purchase setValue:offerString forKey:OBF("627579506172616D6574657273")]; // buyParameters
         
-        [purchase setValue:@(YES) forKey:OBF("6973557064617465")]; // isUpdate
-        [purchase setValue:@(NO) forKey:OBF("69734261636B67726F756E64557064617465")]; // isBackgroundUpdate
-        [purchase setValue:@(YES) forKey:OBF("69735265646F776E6C6F6164")]; // isRedownload
-        [purchase setValue:@(YES) forKey:OBF("637265617465734A6F6273")]; // createsJobs
-        
-        // 🎯 仅在响应时设置，兼容不同 iOS 版本
-        SEL dispSel = NSSelectorFromString(OBF("736574446973706C6179734F6E4C6F636B53637265656E3A")); // setDisplaysOnLockScreen:
-        if ([purchase respondsToSelector:dispSel]) {
-            BOOL val = YES;
-            NSMethodSignature *sig = [purchase methodSignatureForSelector:dispSel];
-            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-            [inv setTarget:purchase]; 
-            [inv setSelector:dispSel]; 
-            [inv setArgument:&val atIndex:2]; 
-            [inv invoke];
+        if (currentDSID) {
+            [purchase setValue:currentDSID forKey:OBF("6163636F756E744964656E746966696572")]; // accountIdentifier
         }
-
+        
+        [purchase setValue:@(YES) forKey:OBF("6973557064617465")]; // isUpdate
+        [purchase setValue:@(YES) forKey:OBF("69735265646F776E6C6F6164")]; // isRedownload
+        [purchase setValue:@(NO) forKey:OBF("69734261636B67726F756E64557064617465")]; // isBackgroundUpdate
+        [purchase setValue:@(YES) forKey:OBF("637265617465734A6F6273")]; // createsJobs
+        [purchase setValue:@(YES) forKey:OBF("646973706C6179734F6E4C6F636B53637265656E")]; // displaysOnLockScreen = YES
+        
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
         id mgr = [ASDPurchaseManagerClass performSelector:NSSelectorFromString(OBF("7368617265644D616E61676572"))]; // sharedManager
@@ -255,7 +265,7 @@
             [inv setSelector:startSel]; 
             [inv setArgument:&purchase atIndex:2];
             
-            // 🎯 真正的核心：Fire-and-forget (发射后不管)。无视所有错误回调，将其阻断！
+            // 🎯 发射后不管，由系统后台 (InstallCoordination) 全权拦截和展示弹窗
             void (^handlerBlock)(id, NSError*) = ^(id result, NSError *error) {};
             id copiedHandler = [handlerBlock copy];
             [inv setArgument:&copiedHandler atIndex:3]; 

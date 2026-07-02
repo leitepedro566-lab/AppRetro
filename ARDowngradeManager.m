@@ -2,6 +2,11 @@
 #import "ARDowngradeManager.h"
 #import <dlfcn.h>
 
+@interface SKUIItemStateCenter_Private : NSObject
+- (id)_newPurchasesWithItems:(NSArray *)items;
+- (void)_performPurchases:(id)purchases hasBundlePurchase:(BOOL)purchase withClientContext:(id)context completionBlock:(void(^)(id))block;
+@end
+
 @interface ARDowngradeManager ()
 - (void)recursiveFetchTrackID:(NSString *)bundleID codes:(NSArray *)codes index:(NSInteger)index completion:(void(^)(long long trackId, NSError *error))completion;
 @end
@@ -15,6 +20,7 @@
     return instance;
 }
 
+// 🎯 全球 87 个 App Store 国家/地区静默轮询，彻底解决部分应用查无版本问题
 - (void)fetchTrackIDForBundleID:(NSString *)bundleID completion:(void(^)(long long, NSError *))completion {
     NSString *countriesStr = OBF("636E2C75732C61652C61672C61692C616C2C616D2C616F2C61722C61742C61752C617A2C62622C62652C62662C62672C62682C626A2C626D2C626E2C626F2C62722C62732C62742C62772C62792C627A2C63612C63672C63682C63692C636C2C636D2C636F2C63722C63762C63792C637A2C64652C646B2C646D2C646F2C647A2C65632C65652C65672C65732C66692C666A2C666D2C66722C67622C67642C67682C676D2C67722C67742C67772C67792C686B2C686E2C68722C68752C69642C69652C696C2C696E2C69732C69742C6A6D2C6A6F2C6A702C6B652C6B672C6B682C6B6E2C6B722C6B772C6B792C6B7A2C6C612C6C622C6C632C6C6B2C6C722C6C742C6C752C6C762C6D642C6D672C6D6B2C6D6C2C6D6E2C6D6F2C6D722C6D732C6D742C6D752C6D752C6D772C6D782C6D792C6E612C6E652C6E672C6E692C6E6C2C6E6F2C6E702C6E7A2C6F6D2C70612C70652C70672C70682C706B2C706C2C70742C70772C70792C71612C726F2C72752C72772C73612C73622C73632C73652C73672C73692C736B2C736C2C736E2C73722C73742C73762C737A2C74632C74642C74682C746A2C746D2C746E2C74722C74742C74772C747A2C75612C75672C75792C757A2C76632C76652C76672C766E2C79652C7A612C7A6D2C7A77");
     NSArray *codes = [countriesStr componentsSeparatedByString:OBF("2C")];
@@ -23,6 +29,7 @@
 
 - (void)recursiveFetchTrackID:(NSString *)bundleID codes:(NSArray *)codes index:(NSInteger)index completion:(void(^)(long long, NSError *))completion {
     if (index >= codes.count) {
+        // 🎯 提示文案变更为：“未找到应用”
         if (completion) completion(0, [NSError errorWithDomain:OBF("417070526574726F") code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E69CAAE689BEE588B0E5BA94E794A8")}]);
         return;
     }
@@ -100,6 +107,7 @@
 #pragma clang diagnostic pop
 
         if (name) {
+            // 排除名为 local 的无效系统内部账号
             if ([name.lowercaseString isEqualToString:OBF("6C6F63616C")]) continue;
             [allLocalNames addObject:name];
         }
@@ -206,111 +214,136 @@
     CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (__bridge CFStringRef)OBF("636F6D2E73746F7265737769746865722E6163636F756E74735F6368616E676564"), NULL, NULL, YES);
 }
 
-// 🎯 彻底复刻竞品：使用 SSPurchaseManager 托管到持久化队列，允许任意杀进程且完美交接 SpringBoard 弹窗！
-- (void)installAppWithTrackID:(long long)trackId versionID:(long long)versionId bundleID:(NSString *)bundleID {
+- (void)fallbackInstallWithTrackID:(long long)trackId versionID:(long long)versionId {
+    NSString *skuiPath = OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F72654B697455492E6672616D65776F726B2F53746F72654B69745549");
+    void *handle = dlopen([skuiPath UTF8String], RTLD_LAZY);
+    if (!handle) return;
+
     NSString *adamId = [NSString stringWithFormat:OBF("256C6C64"), trackId];
     NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), versionId];
-    NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D3126696E7374616C6C6564536F667477617265526174696E673D313030"), adamId, appExtVrsId];
+    
+    NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
 
-    NSNumber *currentDSID = nil;
-    Class SSAccountStoreClass = NSClassFromString(OBF("53534163636F756E7453746F7265")); 
-    if (SSAccountStoreClass) {
+    NSDictionary *offerDict = @{OBF("627579506172616D73"): offerString}; 
+    NSDictionary *itemDict = @{OBF("5F6974656D4F66666572"): adamId}; 
+
+    Class SKUIItemOfferClass = NSClassFromString(OBF("534B55494974656D4F66666572"));
+    Class SKUIItemClass = NSClassFromString(OBF("534B55494974656D"));
+    Class SKUIItemStateCenterClass = NSClassFromString(OBF("534B55494974656D537461746543656E746572"));
+    Class SKUIClientContextClass = NSClassFromString(OBF("534B5549436C69656E74436F6E74657874"));
+
+    if (SKUIItemOfferClass && SKUIItemClass && SKUIItemStateCenterClass) {
+        id offer = [SKUIItemOfferClass alloc];
+        id item = [SKUIItemClass alloc];
+        SEL initSel = NSSelectorFromString(OBF("696E6974576974684C6F6F6B757044696374696F6E6172793A"));
+        
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-        id store = [SSAccountStoreClass performSelector:NSSelectorFromString(OBF("64656661756C7453746F7265"))]; 
-        id activeAcc = [store performSelector:NSSelectorFromString(OBF("6163746976654163636F756E74"))]; 
-        if (activeAcc) {
-            currentDSID = [activeAcc performSelector:NSSelectorFromString(OBF("756E697175654964656E746966696572"))]; 
-        }
+        offer = [offer performSelector:initSel withObject:offerDict];
+        item = [item performSelector:initSel withObject:itemDict];
 #pragma clang diagnostic pop
-    }
 
-    void *ssHandle = dlopen([OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F726553657276696365732E6672616D65776F726B2F53746F72655365727669636573") UTF8String], RTLD_LAZY);
-    if (ssHandle) {
-        Class SSPurchaseClass = NSClassFromString(OBF("53535075726368617365")); // SSPurchase
-        Class SSPurchaseManagerClass = NSClassFromString(OBF("535350757263686173654D616E61676572")); // SSPurchaseManager
+        if (!item) return;
 
-        if (SSPurchaseClass && SSPurchaseManagerClass) {
-            id purchase = [[SSPurchaseClass alloc] init];
-            [purchase setValue:@(trackId) forKey:OBF("756E697175654964656E746966696572")]; // uniqueIdentifier
-            [purchase setValue:offerString forKey:OBF("627579506172616D6574657273")]; // buyParameters
-            
-            if (currentDSID) {
-                [purchase setValue:currentDSID forKey:OBF("6163636F756E744964656E746966696572")]; // accountIdentifier
-            }
-            
-            [purchase setValue:@(YES) forKey:OBF("6261636B67726F756E645075726368617365")]; // backgroundPurchase
-            [purchase setValue:@(YES) forKey:OBF("637265617465734A6F6273")]; // createsJobs
-            [purchase setValue:@(YES) forKey:OBF("63726561746573446F776E6C6F616473")]; // createsDownloads
-            [purchase setValue:@(YES) forKey:OBF("63726561746573496E7374616C6C4A6F6273")]; // createsInstallJobs
-            [purchase setValue:@(YES) forKey:OBF("646973706C6179734F6E4C6F636B53637265656E")]; // displaysOnLockScreen = YES
+        [item setValue:offer forKey:OBF("5F6974656D4F66666572")]; 
+        [item setValue:OBF("696F73536F667477617265") forKey:OBF("5F6974656D4B696E64537472696E67")]; 
+        [item setValue:@(versionId) forKey:OBF("5F76657273696F6E4964656E746966696572")]; 
 
-            id purchaseManager = [[SSPurchaseManagerClass alloc] init];
-            SEL addPurchasesSel = NSSelectorFromString(OBF("6164645075726368617365733A77697468436F6D706C6574696F6E426C6F636B3A")); // addPurchases:withCompletionBlock:
-            
-            if ([purchaseManager respondsToSelector:addPurchasesSel]) {
-                void (^completionBlock)(NSArray *, NSArray *, NSError *) = ^(NSArray *purchases, NSArray *unpurchasedItems, NSError *error) {};
-                
-                NSMethodSignature *sig = [purchaseManager methodSignatureForSelector:addPurchasesSel];
-                NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-                [inv setTarget:purchaseManager];
-                [inv setSelector:addPurchasesSel];
-                
-                NSArray *purchases = @[purchase];
-                [inv setArgument:&purchases atIndex:2];
-                
-                id copiedBlock = [completionBlock copy];
-                [inv setArgument:&copiedBlock atIndex:3];
-                
-                [inv retainArguments];
-                [inv invoke];
-                return; // 🎯 直接拦截并结束！任务已进系统持久化队列，无需理会任何事。
-            }
-        }
-    }
-
-    // 后备方案... 实际运行中前置的 SSPurchaseManager 已100%接管全局，下面为容错逻辑
-    void *asdHandle = dlopen([OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F41707053746F72654461656D6F6E2E6672616D65776F726B2F41707053746F72654461656D6F6E") UTF8String], RTLD_LAZY);
-    if (asdHandle) {
-        Class ASDPurchaseClass = NSClassFromString(OBF("4153445075726368617365")); 
-        Class ASDPurchaseManagerClass = NSClassFromString(OBF("41534450757263686173654D616E61676572")); 
-            
-        if (ASDPurchaseClass && ASDPurchaseManagerClass) {
-            id purchase = [[ASDPurchaseClass alloc] init];
-            [purchase setValue:@(trackId) forKey:OBF("6974656D4944")]; 
-            [purchase setValue:bundleID forKey:OBF("62756E646C654944")]; 
-            [purchase setValue:offerString forKey:OBF("627579506172616D6574657273")]; 
-            
-            if (currentDSID) {
-                [purchase setValue:currentDSID forKey:OBF("6163636F756E744964656E746966696572")]; 
-            }
-            
-            [purchase setValue:@(YES) forKey:OBF("6973557064617465")]; 
-            [purchase setValue:@(YES) forKey:OBF("69735265646F776E6C6F6164")]; 
-            [purchase setValue:@(NO) forKey:OBF("69734261636B67726F756E64557064617465")]; 
-            [purchase setValue:@(YES) forKey:OBF("637265617465734A6F6273")]; 
-            [purchase setValue:@(YES) forKey:OBF("646973706C6179734F6E4C6F636B53637265656E")]; 
-            
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-            id mgr = [ASDPurchaseManagerClass performSelector:NSSelectorFromString(OBF("7368617265644D616E61676572"))]; 
+        id center = [SKUIItemStateCenterClass performSelector:NSSelectorFromString(OBF("64656661756C7443656E746572"))]; 
+        id context = [SKUIClientContextClass performSelector:NSSelectorFromString(OBF("64656661756C74436F6E74657874"))]; 
 #pragma clang diagnostic pop
-            
-            SEL startSel = NSSelectorFromString(OBF("737461727450757263686173653A77697468526573756C7448616E646C65723A")); 
-            if ([mgr respondsToSelector:startSel]) {
-                NSMethodSignature *sig = [mgr methodSignatureForSelector:startSel];
-                NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-                [inv setTarget:mgr]; 
-                [inv setSelector:startSel]; 
-                [inv setArgument:&purchase atIndex:2];
-                
-                void (^handlerBlock)(id, NSError*) = ^(id result, NSError *error) {};
-                id copiedHandler = [handlerBlock copy];
-                [inv setArgument:&copiedHandler atIndex:3]; 
-                [inv retainArguments];
-                [inv invoke];
-            }
+
+        NSArray *items = @[item];
+        
+        SEL newPurchasesSel = NSSelectorFromString(OBF("5F6E6577507572636861736573576974684974656D733A"));
+        id purchases = nil;
+        if ([center respondsToSelector:newPurchasesSel]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            purchases = [center performSelector:newPurchasesSel withObject:items];
+#pragma clang diagnostic pop
         }
+
+        [(SKUIItemStateCenter_Private *)center _performPurchases:purchases hasBundlePurchase:NO withClientContext:context completionBlock:^(id arg1){}];
+    }
+}
+
+- (void)installAppWithTrackID:(long long)trackId versionID:(long long)versionId bundleID:(NSString *)bundleID {
+    NSString *daemonPath = OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F41707053746F72654461656D6F6E2E6672616D65776F726B2F41707053746F72654461656D6F6E");
+    void *handle = dlopen([daemonPath UTF8String], RTLD_LAZY);
+    if (!handle) {
+        [self fallbackInstallWithTrackID:trackId versionID:versionId];
+        return;
+    }
+
+    NSString *adamId = [NSString stringWithFormat:OBF("256C6C64"), trackId];
+    NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), versionId];
+    
+    NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
+
+    Class ASDPurchaseClass = NSClassFromString(OBF("4153445075726368617365"));
+    Class ASDPurchaseManagerClass = NSClassFromString(OBF("41534450757263686173654D616E61676572"));
+        
+    if (ASDPurchaseClass && ASDPurchaseManagerClass) {
+        id purchase = [[ASDPurchaseClass alloc] init];
+        [purchase setValue:@(trackId) forKey:OBF("6974656D4944")]; 
+        [purchase setValue:bundleID forKey:OBF("62756E646C654944")]; 
+        [purchase setValue:offerString forKey:OBF("627579506172616D6574657273")]; 
+        
+        [purchase setValue:@(YES) forKey:OBF("6973557064617465")]; 
+        [purchase setValue:@(NO) forKey:OBF("69734261636B67726F756E64557064617465")]; 
+        [purchase setValue:@(YES) forKey:OBF("69735265646F776E6C6F6164")]; 
+        [purchase setValue:@(YES) forKey:OBF("637265617465734A6F6273")]; 
+        
+        SEL dispSel = NSSelectorFromString(OBF("736574446973706C6179734F6E4C6F636B53637265656E3A"));
+        if ([purchase respondsToSelector:dispSel]) {
+            BOOL val = YES;
+            NSMethodSignature *sig = [purchase methodSignatureForSelector:dispSel];
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:purchase]; 
+            [inv setSelector:dispSel]; 
+            [inv setArgument:&val atIndex:2]; 
+            [inv invoke];
+        }
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        id mgr = [ASDPurchaseManagerClass performSelector:NSSelectorFromString(OBF("7368617265644D616E61676572"))]; 
+#pragma clang diagnostic pop
+        
+        SEL startSel = NSSelectorFromString(OBF("737461727450757263686173653A77697468526573756C7448616E646C65723A"));
+        if ([mgr respondsToSelector:startSel]) {
+            NSMethodSignature *sig = [mgr methodSignatureForSelector:startSel];
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:mgr]; 
+            [inv setSelector:startSel]; 
+            [inv setArgument:&purchase atIndex:2];
+            
+            void (^handlerBlock)(id, NSError*) = ^(id result, NSError *error) {
+                NSError *actualError = error;
+                if (!actualError && result) {
+                    SEL errSel = NSSelectorFromString(OBF("6572726F72"));
+                    if ([result respondsToSelector:errSel]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                        actualError = [result performSelector:errSel];
+#pragma clang diagnostic pop
+                    }
+                }
+                
+                if (actualError) {
+                    [self fallbackInstallWithTrackID:trackId versionID:versionId];
+                }
+            };
+            id copiedHandler = [handlerBlock copy];
+            [inv setArgument:&copiedHandler atIndex:3]; 
+            [inv retainArguments];
+            [inv invoke];
+        }
+    } else {
+        [self fallbackInstallWithTrackID:trackId versionID:versionId];
     }
 }
 @end

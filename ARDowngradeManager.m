@@ -20,6 +20,85 @@
     return instance;
 }
 
+// 🎯 新增：静默并发备份所有 App Store 应用的历史版本列表
+- (void)backupAllAppStoreVersionsWithCompletion:(void (^)(NSUInteger successCount, NSUInteger failCount))completion {
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSMutableDictionary *backupDict = [NSMutableDictionary dictionary];
+        
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        id workspace = [NSClassFromString(OBF("4C534170706C69636174696F6E576F726B7370616365")) performSelector:NSSelectorFromString(OBF("64656661756C74576F726B7370616365"))];
+        NSArray *apps = [workspace performSelector:NSSelectorFromString(OBF("616C6C496E7374616C6C65644170706C69636174696F6E73"))];
+#pragma clang diagnostic pop
+
+        dispatch_group_t group = dispatch_group_create();
+        __block NSUInteger successCount = 0;
+        __block NSUInteger failCount = 0;
+
+        for (id proxy in apps) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            NSString *bundleIdStr = [proxy performSelector:NSSelectorFromString(OBF("62756E646C654964656E746966696572"))]; 
+            NSURL *bundleURL = [proxy respondsToSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] ? [proxy performSelector:NSSelectorFromString(OBF("62756E646C6555524C"))] : nil;
+            NSString *appType = [proxy respondsToSelector:NSSelectorFromString(@"applicationType")] ? [proxy performSelector:NSSelectorFromString(@"applicationType")] : nil;
+#pragma clang diagnostic pop
+            
+            if (!bundleURL || ![appType isEqualToString:@"User"]) continue;
+
+            NSString *bundlePath = bundleURL.path;
+            NSString *containerPath = [bundlePath stringByDeletingLastPathComponent];
+            NSString *metadataPath = [containerPath stringByAppendingPathComponent:OBF("6954756E65734D657461646174612E706C697374")];
+
+            if ([[NSFileManager defaultManager] fileExistsAtPath:metadataPath]) {
+                NSDictionary *metadata = [NSDictionary dictionaryWithContentsOfFile:metadataPath];
+                NSNumber *itemId = metadata[@"itemId"]; // trackId
+
+                if (itemId && bundleIdStr) {
+                    dispatch_group_enter(group);
+                    
+                    NSString *urlFormat = OBF("68747470733A2F2F617069732E62696C696E2E65752E6F72672F686973746F72792F256C6C64");
+                    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:urlFormat, [itemId longLongValue]]];
+                    NSURLRequest *request = [NSURLRequest requestWithURL:url];
+
+                    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+                        if (!error && data) {
+                            NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+                            NSArray *versionData = json[OBF("64617461")];
+                            if ([versionData isKindOfClass:[NSArray class]] && versionData.count > 0) {
+                                @synchronized (backupDict) {
+                                    backupDict[bundleIdStr] = @{
+                                        @"trackId": itemId,
+                                        @"versions": versionData
+                                    };
+                                    successCount++;
+                                }
+                            } else {
+                                @synchronized (backupDict) { failCount++; }
+                            }
+                        } else {
+                            @synchronized (backupDict) { failCount++; }
+                        }
+                        dispatch_group_leave(group);
+                    }];
+                    [task resume];
+                }
+            }
+        }
+
+        dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+            // 转化为 NSData 防止包含 NSNull 导致闪退
+            NSData *safeData = [NSJSONSerialization dataWithJSONObject:backupDict options:0 error:nil];
+            if (safeData) {
+                [[NSUserDefaults standardUserDefaults] setObject:safeData forKey:@"ARLocalDowngradeBackupData"];
+                [[NSUserDefaults standardUserDefaults] synchronize];
+            }
+            if (completion) {
+                completion(successCount, failCount);
+            }
+        });
+    });
+}
+
 // 🎯 全球 87 个 App Store 国家/地区静默轮询，彻底解决部分应用查无版本问题
 - (void)fetchTrackIDForBundleID:(NSString *)bundleID completion:(void(^)(long long, NSError *))completion {
     NSString *countriesStr = OBF("636E2C75732C61652C61672C61692C616C2C616D2C616F2C61722C61742C61752C617A2C62622C62652C62662C62672C62682C626A2C626D2C626E2C626F2C62722C62732C62742C62772C62792C627A2C63612C63672C63682C63692C636C2C636D2C636F2C63722C63762C63792C637A2C64652C646B2C646D2C646F2C647A2C65632C65652C65672C65732C66692C666A2C666D2C66722C67622C67642C67682C676D2C67722C67742C67772C67792C686B2C686E2C68722C68752C69642C69652C696C2C696E2C69732C69742C6A6D2C6A6F2C6A702C6B652C6B672C6B682C6B6E2C6B722C6B772C6B792C6B7A2C6C612C6C622C6C632C6C6B2C6C722C6C742C6C752C6C762C6D642C6D672C6D6B2C6D6C2C6D6E2C6D6F2C6D722C6D732C6D742C6D752C6D752C6D772C6D782C6D792C6E612C6E652C6E672C6E692C6E6C2C6E6F2C6E702C6E7A2C6F6D2C70612C70652C70672C70682C706B2C706C2C70742C70772C70792C71612C726F2C72752C72772C73612C73622C73632C73652C73672C73692C736B2C736C2C736E2C73722C73742C73762C737A2C74632C74642C74682C746A2C746D2C746E2C74722C74742C74772C747A2C75612C75672C75792C757A2C76632C76652C76672C766E2C79652C7A612C7A6D2C7A77");
@@ -29,7 +108,6 @@
 
 - (void)recursiveFetchTrackID:(NSString *)bundleID codes:(NSArray *)codes index:(NSInteger)index completion:(void(^)(long long, NSError *))completion {
     if (index >= codes.count) {
-        // 🎯 提示文案变更为：“未找到应用”
         if (completion) completion(0, [NSError errorWithDomain:OBF("417070526574726F") code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E69CAAE689BEE588B0E5BA94E794A8")}]);
         return;
     }
@@ -107,7 +185,6 @@
 #pragma clang diagnostic pop
 
         if (name) {
-            // 排除名为 local 的无效系统内部账号
             if ([name.lowercaseString isEqualToString:OBF("6C6F63616C")]) continue;
             [allLocalNames addObject:name];
         }

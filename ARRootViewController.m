@@ -3,13 +3,13 @@
 #import "ARVersionViewController.h"
 #import "ARDowngradeManager.h"
 
-@interface ARRootViewController () <UISearchResultsUpdating>
-@property (nonatomic, strong) NSArray *arAllApps;
-@property (nonatomic, strong) NSArray *arFilteredApps;
-@property (nonatomic, strong) UISearchController *arSearchController;
+@interface AR_RootViewController () <UISearchResultsUpdating>
+@property (nonatomic, strong) NSArray *AR_arAllApps;
+@property (nonatomic, strong) NSArray *AR_arFilteredApps;
+@property (nonatomic, strong) UISearchController *AR_arSearchController;
 @end
 
-@implementation ARRootViewController
+@implementation AR_RootViewController
 
 - (instancetype)init {
     UITableViewStyle style = UITableViewStyleGrouped;
@@ -19,26 +19,24 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.title = OBF("417070526574726F"); // "AppRetro"
+    self.title = OBF("417070526574726F");
     self.tableView.separatorColor = [UIColor clearColor];
     self.tableView.showsVerticalScrollIndicator = NO;
     
-    self.arSearchController = [[UISearchController alloc] initWithSearchResultsController:nil];
-    self.arSearchController.searchResultsUpdater = self;
-    self.arSearchController.obscuresBackgroundDuringPresentation = NO;
-    self.arSearchController.searchBar.placeholder = OBF("E6909CE7B4A2"); 
-    [self.arSearchController.searchBar setValue:OBF("E58F96E6B688") forKey:OBF("63616E63656C427574746F6E54657874")];
+    self.AR_arSearchController = [[UISearchController alloc] initWithSearchResultsController:nil];
+    self.AR_arSearchController.searchResultsUpdater = self;
+    self.AR_arSearchController.obscuresBackgroundDuringPresentation = NO;
+    self.AR_arSearchController.searchBar.placeholder = OBF("E6909CE7B4A2"); 
+    [self.AR_arSearchController.searchBar setValue:OBF("E58F96E6B688") forKey:OBF("63616E63656C427574746F6E54657874")];
     
-    self.navigationItem.searchController = self.arSearchController;
+    self.navigationItem.searchController = self.AR_arSearchController;
     self.definesPresentationContext = YES;
     self.navigationItem.hidesSearchBarWhenScrolling = NO;
 
-    // 🎯 核心改动：把原来的 TG 频道移到左边
-    UIBarButtonItem *tgItem = [[UIBarButtonItem alloc] initWithTitle:OBF("5447E9A291E98193") style:UIBarButtonItemStylePlain target:self action:@selector(arOpenTGChannel)];
+    UIBarButtonItem *tgItem = [[UIBarButtonItem alloc] initWithTitle:OBF("5447E9A291E98193") style:UIBarButtonItemStylePlain target:self action:@selector(AR_arOpenTGChannel)];
     self.navigationItem.leftBarButtonItem = tgItem;
 
-    // 🎯 新增：设置右上角的策略获取菜单按钮
-    [self setupRightMenuButton];
+    [self AR_setupRightMenuButton];
 
     dispatch_async(dispatch_get_main_queue(), ^{
         UIView *barBg = self.navigationController.navigationBar.subviews.firstObject;
@@ -49,30 +47,26 @@
         }
     });
 
-    [self loadInstalledApps];
+    [self AR_loadInstalledApps];
 }
 
-// 🎯 新增菜单按钮与备份管理
-- (void)setupRightMenuButton {
+- (void)AR_setupRightMenuButton {
     BOOL useLocalBackup = [[NSUserDefaults standardUserDefaults] boolForKey:@"ARUseLocalBackup"];
     
-    // 🎯 去掉图标
     UIAction *serverAction = [UIAction actionWithTitle:@"从服务器获取版本" image:nil identifier:nil handler:^(__kindof UIAction * _Nonnull action) {
         [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"ARUseLocalBackup"];
         [[NSUserDefaults standardUserDefaults] synchronize];
-        [self setupRightMenuButton]; // 刷新UI状态
+        [self AR_setupRightMenuButton]; 
     }];
     serverAction.state = useLocalBackup ? UIMenuElementStateOff : UIMenuElementStateOn;
     
-    // 🎯 去掉图标
     UIAction *localAction = [UIAction actionWithTitle:@"使用本地备份版本" image:nil identifier:nil handler:^(__kindof UIAction * _Nonnull action) {
         [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"ARUseLocalBackup"];
         [[NSUserDefaults standardUserDefaults] synchronize];
-        [self setupRightMenuButton];
+        [self AR_setupRightMenuButton];
     }];
     localAction.state = useLocalBackup ? UIMenuElementStateOn : UIMenuElementStateOff;
     
-    // 🎯 核心改动：格式化时间与精简文案
     NSDate *lastBackup = [[NSUserDefaults standardUserDefaults] objectForKey:@"ARLocalDowngradeBackupTime"];
     NSString *backupTitle = @"备份版本";
     if (lastBackup) {
@@ -81,21 +75,18 @@
         backupTitle = [NSString stringWithFormat:@"备份版本 (%@)", [df stringFromDate:lastBackup]];
     }
     
-    // 🎯 去掉图标
     UIAction *backupAction = [UIAction actionWithTitle:backupTitle image:nil identifier:nil handler:^(__kindof UIAction * _Nonnull action) {
-        [self showBackupConfirmation];
+        [self AR_showBackupConfirmation];
     }];
     
     UIMenu *menu = [UIMenu menuWithTitle:@"" children:@[serverAction, localAction, backupAction]];
     
-    // 🎯 核心改动：移除右上角的图标，变成纯文本“获取方式”
     UIBarButtonItem *menuItem = [[UIBarButtonItem alloc] initWithTitle:@"获取方式" style:UIBarButtonItemStylePlain target:nil action:nil];
     menuItem.menu = menu;
     self.navigationItem.rightBarButtonItem = menuItem;
 }
 
-- (void)showBackupConfirmation {
-    // 🎯 核心改动：修改弹窗标题和提示内容
+- (void)AR_showBackupConfirmation {
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"备份" message:@"备份已安装应用的所有版本" preferredStyle:UIAlertControllerStyleAlert];
     
     CGFloat radius = 25.0;
@@ -110,14 +101,13 @@
     }
     
     [alert addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
-    // 🎯 核心改动：将“开始备份”简化为“备份”
     [alert addAction:[UIAlertAction actionWithTitle:@"备份" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-        [self startBackupProcess];
+        [self AR_startBackupProcess];
     }]];
     [self presentViewController:alert animated:YES completion:nil];
 }
 
-- (void)startBackupProcess {
+- (void)AR_startBackupProcess {
     CGFloat radius = 25.0;
     CACornerMask mask = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
     
@@ -132,10 +122,9 @@
     }
     
     [self presentViewController:loading animated:YES completion:^{
-        [[ARDowngradeManager sharedManager] backupAllAppStoreVersionsWithCompletion:^(NSUInteger successCount, NSUInteger failCount) {
+        [[AR_DowngradeManager AR_sharedManager] AR_backupAllAppStoreVersionsWithCompletion:^(NSUInteger successCount, NSUInteger failCount) {
             [loading dismissViewControllerAnimated:YES completion:^{
-                // 🎯 核心改动：备份完成后立即刷新菜单，显示最新时间
-                [self setupRightMenuButton]; 
+                [self AR_setupRightMenuButton]; 
                 
                 NSString *msg = [NSString stringWithFormat:@"成功备份 %lu 个应用，失败 %lu 个。", (unsigned long)successCount, (unsigned long)failCount];
                 UIAlertController *doneAlert = [UIAlertController alertControllerWithTitle:@"备份完成" message:msg preferredStyle:UIAlertControllerStyleAlert];
@@ -154,12 +143,12 @@
     }];
 }
 
-- (void)arOpenTGChannel {
+- (void)AR_arOpenTGChannel {
     NSURL *url = [NSURL URLWithString:OBF("68747470733A2F2F742E6D652F696F7364756D707A7A7A")];
     [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
 }
 
-- (void)loadInstalledApps {
+- (void)AR_loadInstalledApps {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
     id workspace = [NSClassFromString(OBF("4C534170706C69636174696F6E576F726B7370616365")) performSelector:NSSelectorFromString(OBF("64656661756C74576F726B7370616365"))];
@@ -217,18 +206,18 @@
         return [nameA localizedCaseInsensitiveCompare:nameB];
     }];
     
-    self.arAllApps = validApps;
-    self.arFilteredApps = validApps;
+    self.AR_arAllApps = validApps;
+    self.AR_arFilteredApps = validApps;
     [self.tableView reloadData];
 }
 
 - (void)updateSearchResultsForSearchController:(UISearchController *)searchController {
     NSString *searchText = searchController.searchBar.text.lowercaseString;
     if (searchText.length == 0) {
-        self.arFilteredApps = self.arAllApps;
+        self.AR_arFilteredApps = self.AR_arAllApps;
     } else {
         NSMutableArray *results = [NSMutableArray array];
-        for (id proxy in self.arAllApps) {
+        for (id proxy in self.AR_arAllApps) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
             SEL nameSel = NSSelectorFromString(OBF("6C6F63616C697A65644E616D65"));
@@ -246,13 +235,13 @@
                 [results addObject:proxy];
             }
         }
-        self.arFilteredApps = results;
+        self.AR_arFilteredApps = results;
     }
     [self.tableView reloadData];
 }
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView { 
-    return self.arFilteredApps.count; 
+    return self.AR_arFilteredApps.count; 
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section { 
@@ -268,7 +257,7 @@
         cell.imageView.layer.cornerRadius = 12.0;
     }
     
-    id proxy = self.arFilteredApps[indexPath.section];
+    id proxy = self.AR_arFilteredApps[indexPath.section];
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
     SEL nameSel = NSSelectorFromString(OBF("6C6F63616C697A65644E616D65"));
@@ -337,7 +326,7 @@
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    id proxy = self.arFilteredApps[indexPath.section];
+    id proxy = self.AR_arFilteredApps[indexPath.section];
     
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
@@ -355,10 +344,10 @@
     NSString *fullAppPath = bundleURL.path;
 #pragma clang diagnostic pop
     
-    ARVersionViewController *versionVC = [[ARVersionViewController alloc] init];
-    versionVC.bundleID = bundleIdStr; 
-    versionVC.appName = name;
-    versionVC.appPhysicalPath = fullAppPath; 
+    AR_VersionViewController *versionVC = [[AR_VersionViewController alloc] init];
+    versionVC.AR_bundleID = bundleIdStr; 
+    versionVC.AR_appName = name;
+    versionVC.AR_appPhysicalPath = fullAppPath; 
     
     [self.navigationController pushViewController:versionVC animated:YES];
 }

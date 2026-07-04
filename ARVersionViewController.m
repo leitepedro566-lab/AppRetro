@@ -2,7 +2,7 @@
 #import "ARVersionViewController.h"
 #import "ARDowngradeManager.h"
 
-@implementation ARVersionViewController
+@implementation AR_VersionViewController
 
 - (instancetype)init {
     UITableViewStyle style = UITableViewStyleGrouped;
@@ -10,8 +10,7 @@
     return [super initWithStyle:style];
 }
 
-// 🎯 工具方法：复用全局圆角弹窗逻辑
-- (void)applyRoundedUIToAlert:(UIAlertController *)ac {
+- (void)AR_applyRoundedUIToAlert:(UIAlertController *)ac {
     CGFloat radius = 25.0;
     CACornerMask mask = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
     ac.view.layer.cornerRadius = radius;
@@ -27,7 +26,7 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    self.title = [NSString stringWithFormat:OBF("254020E9998DE7BAA72FE58D87E7BAA7"), self.appName]; 
+    self.title = [NSString stringWithFormat:OBF("254020E9998DE7BAA72FE58D87E7BAA7"), self.AR_appName]; 
     self.tableView.separatorColor = [UIColor clearColor];
     
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -39,27 +38,25 @@
         }
     });
     
-    UIBarButtonItem *customItem = [[UIBarButtonItem alloc] initWithTitle:OBF("E887AAE5AE9A") style:UIBarButtonItemStylePlain target:self action:@selector(inputCustomVersion)];
+    UIBarButtonItem *customItem = [[UIBarButtonItem alloc] initWithTitle:OBF("E887AAE5AE9A") style:UIBarButtonItemStylePlain target:self action:@selector(AR_inputCustomVersion)];
     self.navigationItem.rightBarButtonItem = customItem;
     
-    [self fetchVersionData];
+    [self AR_fetchVersionData];
 }
 
-- (void)fetchVersionData {
-    // 🎯 核心改动：检查全局菜单的状态，优先读取本地备份
+- (void)AR_fetchVersionData {
     BOOL useLocalBackup = [[NSUserDefaults standardUserDefaults] boolForKey:@"ARUseLocalBackup"];
     
     if (useLocalBackup) {
         NSData *backupData = [[NSUserDefaults standardUserDefaults] objectForKey:@"ARLocalDowngradeBackupData"];
         NSDictionary *backupDict = backupData ? [NSJSONSerialization JSONObjectWithData:backupData options:0 error:nil] : nil;
-        NSDictionary *appBackup = backupDict[self.bundleID];
+        NSDictionary *appBackup = backupDict[self.AR_bundleID];
         
         if (appBackup && appBackup[@"versions"]) {
-            self.trackID = [appBackup[@"trackId"] longLongValue];
+            self.AR_trackID = [appBackup[@"trackId"] longLongValue];
             NSArray *versionsArr = appBackup[@"versions"];
             
-            // 防 null 崩溃并倒序排列
-            self.versions = [versionsArr sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *obj1, NSDictionary *obj2) {
+            self.AR_versions = [versionsArr sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *obj1, NSDictionary *obj2) {
                 NSString *date1 = [obj1[OBF("72656C656173655F64617465")] isKindOfClass:[NSString class]] ? obj1[OBF("72656C656173655F64617465")] : @"";
                 NSString *date2 = [obj2[OBF("72656C656173655F64617465")] isKindOfClass:[NSString class]] ? obj2[OBF("72656C656173655F64617465")] : @"";
                 return [date2 compare:date1];
@@ -67,9 +64,8 @@
             
             [self.tableView reloadData];
         } else {
-            // 没有备份或者读取失败时弹窗提示，并允许用户返回主页
             UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:@"未找到备份" message:@"未找到该应用的本地版本备份，请先到首页右上角点击“备份全部应用版本”，或切换回“从服务器获取版本”。" preferredStyle:UIAlertControllerStyleAlert];
-            [self applyRoundedUIToAlert:errAlert];
+            [self AR_applyRoundedUIToAlert:errAlert];
             [errAlert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:^(UIAlertAction *action){
                 [self.navigationController popViewControllerAnimated:YES];
             }]];
@@ -78,9 +74,8 @@
         return;
     }
 
-    // 默认：从服务器在线拉取
-    UIAlertController *loading = [UIAlertController alertControllerWithTitle:OBF("E7A88DE5908E") message:OBF("E88EB7E58F96E78988E69CACE58897E8A1A82E2E2E") preferredStyle:UIAlertControllerStyleAlert]; // 稍候, 获取版本列表...
-    [self applyRoundedUIToAlert:loading];
+    UIAlertController *loading = [UIAlertController alertControllerWithTitle:OBF("E7A88DE5908E") message:OBF("E88EB7E58F96E78988E69CACE58897E8A1A82E2E2E") preferredStyle:UIAlertControllerStyleAlert]; 
+    [self AR_applyRoundedUIToAlert:loading];
     
     __weak typeof(self) weakSelf = self;
     [self presentViewController:loading animated:YES completion:^{
@@ -90,7 +85,7 @@
             return;
         }
         
-        [[ARDowngradeManager sharedManager] fetchTrackIDForBundleID:strongSelf.bundleID completion:^(long long trackId, NSError *error) {
+        [[AR_DowngradeManager AR_sharedManager] AR_fetchTrackIDForBundleID:strongSelf.AR_bundleID AR_completion:^(long long trackId, NSError *error) {
             __strong typeof(weakSelf) innerSelf1 = weakSelf;
             if (!innerSelf1) {
                 dispatch_async(dispatch_get_main_queue(), ^{ [loading dismissViewControllerAnimated:NO completion:nil]; });
@@ -104,7 +99,7 @@
                         if (!innerSelf2) return;
                         
                         UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:OBF("E5A4B1E8B4A5") message:error.localizedDescription ?: OBF("E69CAAE689BEE588B0E5BA94E794A8") preferredStyle:UIAlertControllerStyleAlert];
-                        [innerSelf2 applyRoundedUIToAlert:errAlert];
+                        [innerSelf2 AR_applyRoundedUIToAlert:errAlert];
                         [errAlert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:nil]];
                         [innerSelf2 presentViewController:errAlert animated:YES completion:nil];
                     }];
@@ -112,9 +107,9 @@
                 return;
             }
             
-            innerSelf1.trackID = trackId;
+            innerSelf1.AR_trackID = trackId;
             
-            [[ARDowngradeManager sharedManager] fetchVersionsForTrackID:trackId completion:^(NSArray *versionsArr, NSError *error) {
+            [[AR_DowngradeManager AR_sharedManager] AR_fetchVersionsForTrackID:trackId AR_completion:^(NSArray *versionsArr, NSError *error) {
                 dispatch_async(dispatch_get_main_queue(), ^{
                     [loading dismissViewControllerAnimated:YES completion:^{
                         __strong typeof(weakSelf) innerSelf3 = weakSelf;
@@ -122,13 +117,13 @@
                         
                         if (error) {
                             UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:OBF("E5A4B1E8B4A5") message:error.localizedDescription preferredStyle:UIAlertControllerStyleAlert];
-                            [innerSelf3 applyRoundedUIToAlert:errAlert];
+                            [innerSelf3 AR_applyRoundedUIToAlert:errAlert];
                             [errAlert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:nil]];
                             [innerSelf3 presentViewController:errAlert animated:YES completion:nil];
                             return;
                         }
                         
-                        innerSelf3.versions = [versionsArr sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *obj1, NSDictionary *obj2) {
+                        innerSelf3.AR_versions = [versionsArr sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *obj1, NSDictionary *obj2) {
                             NSString *date1 = [obj1[OBF("72656C656173655F64617465")] isKindOfClass:[NSString class]] ? obj1[OBF("72656C656173655F64617465")] : @"";
                             NSString *date2 = [obj2[OBF("72656C656173655F64617465")] isKindOfClass:[NSString class]] ? obj2[OBF("72656C656173655F64617465")] : @"";
                             return [date2 compare:date1];
@@ -142,34 +137,34 @@
     }];
 }
 
-- (void)inputCustomVersion {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:OBF("E887AAE5AE9A") message:OBF("E8BE93E585A5E78988E69CACE58FB7") preferredStyle:UIAlertControllerStyleAlert]; // 自定义, 输入版本号
-    [self applyRoundedUIToAlert:alert];
+- (void)AR_inputCustomVersion {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:OBF("E887AAE5AE9A") message:OBF("E8BE93E585A5E78988E69CACE58FB7") preferredStyle:UIAlertControllerStyleAlert]; 
+    [self AR_applyRoundedUIToAlert:alert];
     
     [alert addTextFieldWithConfigurationHandler:^(UITextField * _Nonnull textField) {
         textField.keyboardType = UIKeyboardTypeNumberPad;
     }];
     
-    [alert addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]]; // 取消
+    [alert addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]]; 
     
-    [alert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE8AEA4") style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) { // 确认
+    [alert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE8AEA4") style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) { 
         NSString *input = alert.textFields.firstObject.text;
         long long vId = [input longLongValue];
         
         if (vId > 0) {
-            if (self.trackID == 0) {
+            if (self.AR_trackID == 0) {
                 UIAlertController *err = [UIAlertController alertControllerWithTitle:OBF("E5A4B1E8B4A5") message:OBF("E69CAAE689BEE588B0E5BA94E794A8") preferredStyle:UIAlertControllerStyleAlert];
-                [self applyRoundedUIToAlert:err];
+                [self AR_applyRoundedUIToAlert:err];
                 [err addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:nil]];
                 [self presentViewController:err animated:YES completion:nil];
                 return;
             }
             
-            [[ARDowngradeManager sharedManager] verifyOwnershipForBundleID:self.bundleID appPath:self.appPhysicalPath completion:^(BOOL isMatch, NSString *purchaser, NSString *active, NSArray *allAccounts) {
+            [[AR_DowngradeManager AR_sharedManager] AR_verifyOwnershipForBundleID:self.AR_bundleID AR_appPath:self.AR_appPhysicalPath AR_completion:^(BOOL isMatch, NSString *purchaser, NSString *active, NSArray *allAccounts) {
                 if (isMatch) {
-                    [self executeDowngradeProcessWithVersionStr:input versionID:vId];
+                    [self AR_executeDowngradeProcessWithVersionStr:input AR_versionID:vId];
                 } else {
-                    [self handleOwnershipMismatchWithPurchaser:purchaser active:active allAccounts:allAccounts versionStr:input versionID:vId indexPath:nil];
+                    [self AR_handleOwnershipMismatchWithPurchaser:purchaser AR_active:active AR_allAccounts:allAccounts AR_versionStr:input AR_versionID:vId AR_indexPath:nil];
                 }
             }];
         }
@@ -179,7 +174,7 @@
 }
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView { 
-    return self.versions.count; 
+    return self.AR_versions.count; 
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section { 
@@ -193,7 +188,7 @@
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:cellID];
     }
     
-    NSDictionary *ver = self.versions[indexPath.section];
+    NSDictionary *ver = self.AR_versions[indexPath.section];
     NSString *bundleVer = [ver[OBF("62756E646C655F76657273696F6E")] isKindOfClass:[NSString class]] ? ver[OBF("62756E646C655F76657273696F6E")] : OBF("2D");
     
     cell.textLabel.text = bundleVer;
@@ -237,33 +232,33 @@
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     
-    NSDictionary *ver = self.versions[indexPath.section];
+    NSDictionary *ver = self.AR_versions[indexPath.section];
     long long vId = [ver[OBF("65787465726E616C5F6964656E746966696572")] longLongValue]; 
     NSString *verStr = [ver[OBF("62756E646C655F76657273696F6E")] isKindOfClass:[NSString class]] ? ver[OBF("62756E646C655F76657273696F6E")] : OBF("2D");
     
-    [[ARDowngradeManager sharedManager] verifyOwnershipForBundleID:self.bundleID appPath:self.appPhysicalPath completion:^(BOOL isMatch, NSString *purchaser, NSString *active, NSArray *allAccounts) {
+    [[AR_DowngradeManager AR_sharedManager] AR_verifyOwnershipForBundleID:self.AR_bundleID AR_appPath:self.AR_appPhysicalPath AR_completion:^(BOOL isMatch, NSString *purchaser, NSString *active, NSArray *allAccounts) {
         if (isMatch) {
-            [self executeDowngradeProcessWithVersionStr:verStr versionID:vId];
+            [self AR_executeDowngradeProcessWithVersionStr:verStr AR_versionID:vId];
         } else {
-            [self handleOwnershipMismatchWithPurchaser:purchaser active:active allAccounts:allAccounts versionStr:verStr versionID:vId indexPath:indexPath];
+            [self AR_handleOwnershipMismatchWithPurchaser:purchaser AR_active:active AR_allAccounts:allAccounts AR_versionStr:verStr AR_versionID:vId AR_indexPath:indexPath];
         }
     }];
 }
 
-- (void)handleOwnershipMismatchWithPurchaser:(NSString *)purchaser active:(NSString *)active allAccounts:(NSArray *)allAccounts versionStr:(NSString *)verStr versionID:(long long)vId indexPath:(NSIndexPath *)indexPath {
+- (void)AR_handleOwnershipMismatchWithPurchaser:(NSString *)purchaser AR_active:(NSString *)active AR_allAccounts:(NSArray *)allAccounts AR_versionStr:(NSString *)verStr AR_versionID:(long long)vId AR_indexPath:(NSIndexPath *)indexPath {
     NSString *mismatchTitle = OBF("E8B4A6E58FB7E4B88DE58CB9E9858D"); 
     NSString *purchaserText = OBF("E8B4ADE4B9B0E8B4A6E58FB7EFBC9A"); 
     NSString *activeText = OBF("E5BD93E5898DE8B4A6E58FB7EFBC9A"); 
     
     NSString *msg = [NSString stringWithFormat:@"%@\n\n%@ %@\n%@ %@", mismatchTitle, purchaserText, purchaser ?: @"-", activeText, active ?: @"-"];
     UIAlertController *mismatchAlert = [UIAlertController alertControllerWithTitle:OBF("E9AA8CE8AF81E5A4B1E8B4A5") message:msg preferredStyle:UIAlertControllerStyleAlert]; 
-    [self applyRoundedUIToAlert:mismatchAlert];
+    [self AR_applyRoundedUIToAlert:mismatchAlert];
     
     [mismatchAlert addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]]; 
     [mismatchAlert addAction:[UIAlertAction actionWithTitle:OBF("E58887E68DA2E8B4A6E58FB7") style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) { 
         
         UIAlertController *switchSheet = [UIAlertController alertControllerWithTitle:OBF("E98089E68B9CE8B4A6E58FB7") message:purchaser preferredStyle:UIAlertControllerStyleActionSheet]; 
-        [self applyRoundedUIToAlert:switchSheet];
+        [self AR_applyRoundedUIToAlert:switchSheet];
         
         for (NSString *accName in allAccounts) {
             NSString *btnTitle = accName;
@@ -272,18 +267,18 @@
             }
             [switchSheet addAction:[UIAlertAction actionWithTitle:btnTitle style:UIAlertActionStyleDefault handler:^(UIAlertAction *act) {
                 
-                UIAlertController *switchingAlert = [UIAlertController alertControllerWithTitle:OBF("E58887E68DA2E4B8ADEFBC8CE7A88DE5908E2E2E2E") message:nil preferredStyle:UIAlertControllerStyleAlert]; // 切换中，稍候...
-                [self applyRoundedUIToAlert:switchingAlert];
+                UIAlertController *switchingAlert = [UIAlertController alertControllerWithTitle:OBF("E58887E68DA2E4B8ADEFBC8CE7A88DE5908E2E2E2E") message:nil preferredStyle:UIAlertControllerStyleAlert]; 
+                [self AR_applyRoundedUIToAlert:switchingAlert];
                 [self presentViewController:switchingAlert animated:YES completion:nil];
 
-                [[ARDowngradeManager sharedManager] executeAccountSwitchToName:accName];
+                [[AR_DowngradeManager AR_sharedManager] AR_executeAccountSwitchToName:accName];
                 
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                     [switchingAlert dismissViewControllerAnimated:YES completion:^{
                         if (indexPath) {
                             [self tableView:self.tableView didSelectRowAtIndexPath:indexPath];
                         } else {
-                            [self executeDowngradeProcessWithVersionStr:verStr versionID:vId];
+                            [self AR_executeDowngradeProcessWithVersionStr:verStr AR_versionID:vId];
                         }
                     }];
                 });
@@ -296,17 +291,17 @@
     [self presentViewController:mismatchAlert animated:YES completion:nil];
 }
 
-- (void)executeDowngradeProcessWithVersionStr:(NSString *)verStr versionID:(long long)vId {
+- (void)AR_executeDowngradeProcessWithVersionStr:(NSString *)verStr AR_versionID:(long long)vId {
     NSString *msg = [NSString stringWithFormat:OBF("2540E7A1AEE8AEA4"), verStr];
     
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:OBF("E7A1AEE8AEA4") message:msg preferredStyle:UIAlertControllerStyleAlert]; 
-    [self applyRoundedUIToAlert:alert];
+    [self AR_applyRoundedUIToAlert:alert];
     
     [alert addAction:[UIAlertAction actionWithTitle:OBF("E58F96E6B688") style:UIAlertActionStyleCancel handler:nil]]; 
     
     [alert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE8AEA4") style:UIAlertActionStyleDestructive handler:^(UIAlertAction * _Nonnull action) { 
         
-        [[ARDowngradeManager sharedManager] installAppWithTrackID:self.trackID versionID:vId bundleID:self.bundleID];
+        [[AR_DowngradeManager AR_sharedManager] AR_installAppWithTrackID:self.AR_trackID AR_versionID:vId AR_bundleID:self.AR_bundleID];
         
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
 #pragma clang diagnostic push

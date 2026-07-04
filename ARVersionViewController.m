@@ -39,19 +39,49 @@
         }
     });
     
-    // 🎯 在右上角添加“自定义”按钮
     UIBarButtonItem *customItem = [[UIBarButtonItem alloc] initWithTitle:OBF("E887AAE5AE9A") style:UIBarButtonItemStylePlain target:self action:@selector(inputCustomVersion)];
     self.navigationItem.rightBarButtonItem = customItem;
     
-    // 🎯 直接在页面加载完毕后开始请求网络，失败也不会强制退出该页面
     [self fetchVersionData];
 }
 
 - (void)fetchVersionData {
+    // 🎯 核心改动：检查全局菜单的状态，优先读取本地备份
+    BOOL useLocalBackup = [[NSUserDefaults standardUserDefaults] boolForKey:@"ARUseLocalBackup"];
+    
+    if (useLocalBackup) {
+        NSData *backupData = [[NSUserDefaults standardUserDefaults] objectForKey:@"ARLocalDowngradeBackupData"];
+        NSDictionary *backupDict = backupData ? [NSJSONSerialization JSONObjectWithData:backupData options:0 error:nil] : nil;
+        NSDictionary *appBackup = backupDict[self.bundleID];
+        
+        if (appBackup && appBackup[@"versions"]) {
+            self.trackID = [appBackup[@"trackId"] longLongValue];
+            NSArray *versionsArr = appBackup[@"versions"];
+            
+            // 防 null 崩溃并倒序排列
+            self.versions = [versionsArr sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *obj1, NSDictionary *obj2) {
+                NSString *date1 = [obj1[OBF("72656C656173655F64617465")] isKindOfClass:[NSString class]] ? obj1[OBF("72656C656173655F64617465")] : @"";
+                NSString *date2 = [obj2[OBF("72656C656173655F64617465")] isKindOfClass:[NSString class]] ? obj2[OBF("72656C656173655F64617465")] : @"";
+                return [date2 compare:date1];
+            }];
+            
+            [self.tableView reloadData];
+        } else {
+            // 没有备份或者读取失败时弹窗提示，并允许用户返回主页
+            UIAlertController *errAlert = [UIAlertController alertControllerWithTitle:@"未找到备份" message:@"未找到该应用的本地版本备份，请先到首页右上角点击“备份全部应用版本”，或切换回“从服务器获取版本”。" preferredStyle:UIAlertControllerStyleAlert];
+            [self applyRoundedUIToAlert:errAlert];
+            [errAlert addAction:[UIAlertAction actionWithTitle:OBF("E7A1AEE5AE9A") style:UIAlertActionStyleCancel handler:^(UIAlertAction *action){
+                [self.navigationController popViewControllerAnimated:YES];
+            }]];
+            [self presentViewController:errAlert animated:YES completion:nil];
+        }
+        return;
+    }
+
+    // 默认：从服务器在线拉取
     UIAlertController *loading = [UIAlertController alertControllerWithTitle:OBF("E7A88DE5908E") message:OBF("E88EB7E58F96E78988E69CACE58897E8A1A82E2E2E") preferredStyle:UIAlertControllerStyleAlert]; // 稍候, 获取版本列表...
     [self applyRoundedUIToAlert:loading];
     
-    // 🎯 核心修复：防止网速过快导致 dismiss 和 present 动画冲突，并在用户迅速回退页面时安全销毁
     __weak typeof(self) weakSelf = self;
     [self presentViewController:loading animated:YES completion:^{
         __strong typeof(weakSelf) strongSelf = weakSelf;
@@ -98,7 +128,12 @@
                             return;
                         }
                         
-                        innerSelf3.versions = [versionsArr sortedArrayUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:OBF("72656C656173655F64617465") ascending:NO]]]; 
+                        innerSelf3.versions = [versionsArr sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *obj1, NSDictionary *obj2) {
+                            NSString *date1 = [obj1[OBF("72656C656173655F64617465")] isKindOfClass:[NSString class]] ? obj1[OBF("72656C656173655F64617465")] : @"";
+                            NSString *date2 = [obj2[OBF("72656C656173655F64617465")] isKindOfClass:[NSString class]] ? obj2[OBF("72656C656173655F64617465")] : @"";
+                            return [date2 compare:date1];
+                        }];
+                        
                         [innerSelf3.tableView reloadData];
                     }];
                 });
@@ -107,7 +142,6 @@
     }];
 }
 
-// 🎯 自定义版本入口
 - (void)inputCustomVersion {
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:OBF("E887AAE5AE9A") message:OBF("E8BE93E585A5E78988E69CACE58FB7") preferredStyle:UIAlertControllerStyleAlert]; // 自定义, 输入版本号
     [self applyRoundedUIToAlert:alert];
@@ -160,11 +194,16 @@
     }
     
     NSDictionary *ver = self.versions[indexPath.section];
-    NSString *bundleVer = ver[OBF("62756E646C655F76657273696F6E")]; 
+    NSString *bundleVer = [ver[OBF("62756E646C655F76657273696F6E")] isKindOfClass:[NSString class]] ? ver[OBF("62756E646C655F76657273696F6E")] : OBF("2D");
     
-    cell.textLabel.text = bundleVer ?: OBF("2D");
+    cell.textLabel.text = bundleVer;
     cell.textLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightMedium];
-    cell.detailTextLabel.text = [ver[OBF("65787465726E616C5F6964656E746966696572")] stringValue];
+    
+    NSString *extIdStr = @"";
+    if ([ver[OBF("65787465726E616C5F6964656E746966696572")] isKindOfClass:[NSNumber class]] || [ver[OBF("65787465726E616C5F6964656E746966696572")] isKindOfClass:[NSString class]]) {
+        extIdStr = [NSString stringWithFormat:@"%@", ver[OBF("65787465726E616C5F6964656E746966696572")]];
+    }
+    cell.detailTextLabel.text = extIdStr;
     
     return cell;
 }
@@ -200,7 +239,7 @@
     
     NSDictionary *ver = self.versions[indexPath.section];
     long long vId = [ver[OBF("65787465726E616C5F6964656E746966696572")] longLongValue]; 
-    NSString *verStr = ver[OBF("62756E646C655F76657273696F6E")];
+    NSString *verStr = [ver[OBF("62756E646C655F76657273696F6E")] isKindOfClass:[NSString class]] ? ver[OBF("62756E646C655F76657273696F6E")] : OBF("2D");
     
     [[ARDowngradeManager sharedManager] verifyOwnershipForBundleID:self.bundleID appPath:self.appPhysicalPath completion:^(BOOL isMatch, NSString *purchaser, NSString *active, NSArray *allAccounts) {
         if (isMatch) {
@@ -211,7 +250,6 @@
     }];
 }
 
-// 🎯 工具方法：复用账号不匹配时的极简换号与重试逻辑
 - (void)handleOwnershipMismatchWithPurchaser:(NSString *)purchaser active:(NSString *)active allAccounts:(NSArray *)allAccounts versionStr:(NSString *)verStr versionID:(long long)vId indexPath:(NSIndexPath *)indexPath {
     NSString *mismatchTitle = OBF("E8B4A6E58FB7E4B88DE58CB9E9858D"); 
     NSString *purchaserText = OBF("E8B4ADE4B9B0E8B4A6E58FB7EFBC9A"); 

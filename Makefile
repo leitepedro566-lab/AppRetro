@@ -13,10 +13,14 @@ APPLICATION_NAME = AppRetro
 AppRetro_FILES = main.m ARAppDelegate.m ARRootViewController.m ARVersionViewController.m ARDowngradeManager.m junk.S
 AppRetro_FRAMEWORKS = UIKit Foundation CoreGraphics
 
-# 🎯 强化编译参数：关闭异常栈展开信息，缩减逆向者可分析的控制流路径
-AppRetro_CFLAGS = -fobjc-arc -fvisibility=hidden -fno-objc-arc-exceptions -fno-exceptions -include Obfuscation.h
+# 🎯 终极编译参数：
+# -O3: 开启最高等级优化，强制将我们的解密内联函数打散分布到各个内存块
+# -fno-ident: 抹除编译器版本标识
+# -mllvm -inline-threshold=2000: 强制要求 LLVM 在编译时无条件展开我们的混淆代码
+AppRetro_CFLAGS = -fobjc-arc -fvisibility=hidden -fno-objc-arc-exceptions -fno-exceptions -O3 -fno-ident -mllvm -inline-threshold=2000 -include Obfuscation.h
 
-# 🎯 极简符号表：严格剔除所有多余信息，只向系统暴露 _main 入口
+# 🎯 极限静态抹除：
+# 抛弃一切对外的全局/局部符号映射，只保留孤零零的入口点
 AppRetro_LDFLAGS = -weak_framework MobileCoreServices -weak_framework StoreServices -Wl,-S -Wl,-x -Wl,-dead_strip -Wl,-exported_symbol,_main
 
 AppRetro_CODESIGN_FLAGS = -S$(APPLICATION_NAME).entitlements

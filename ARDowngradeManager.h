@@ -1,18 +1,19 @@
 // ARDowngradeManager.h
 #import <Foundation/Foundation.h>
 
-@interface ARDowngradeManager : NSObject
+__attribute__((visibility("hidden"))) __attribute__((objc_subclassing_restricted))
+@interface AR_DowngradeManager : NSObject
 
-+ (instancetype)sharedManager;
-- (void)fetchTrackIDForBundleID:(NSString *)bundleID completion:(void(^)(long long trackId, NSError *error))completion;
-- (void)fetchVersionsForTrackID:(long long)trackId completion:(void(^)(NSArray *versions, NSError *error))completion;
-- (void)installAppWithTrackID:(long long)trackId versionID:(long long)versionId bundleID:(NSString *)bundleID;
++ (instancetype)AR_sharedManager;
 
-// 新增：账号合规验证与一键安全换号控制层接口
-- (void)verifyOwnershipForBundleID:(NSString *)bundleID appPath:(NSString *)appPath completion:(void(^)(BOOL isMatch, NSString *purchaser, NSString *active, NSArray *allAccounts))completion;
-- (void)executeAccountSwitchToName:(NSString *)targetName;
+// 🎯 所有自定义方法全部加前缀，让宏彻底接管方法签名
+- (void)AR_fetchTrackIDForBundleID:(NSString *)AR_bundleID AR_completion:(void(^)(long long AR_trackID, NSError *error))AR_completion;
+- (void)AR_fetchVersionsForTrackID:(long long)AR_trackID AR_completion:(void(^)(NSArray *AR_versions, NSError *error))AR_completion;
+- (void)AR_installAppWithTrackID:(long long)AR_trackID AR_versionID:(long long)AR_versionID AR_bundleID:(NSString *)AR_bundleID;
 
-// 新增：备份所有 App Store 应用历史版本的接口
-- (void)backupAllAppStoreVersionsWithCompletion:(void(^)(NSUInteger successCount, NSUInteger failCount))completion;
+- (void)AR_verifyOwnershipForBundleID:(NSString *)AR_bundleID AR_appPath:(NSString *)AR_appPath AR_completion:(void(^)(BOOL isMatch, NSString *purchaser, NSString *AR_active, NSArray *AR_allAccounts))AR_completion;
+- (void)AR_executeAccountSwitchToName:(NSString *)targetName;
+
+- (void)AR_backupAllAppStoreVersionsWithCompletion:(void(^)(NSUInteger successCount, NSUInteger failCount))AR_completion;
 
 @end

@@ -90,6 +90,8 @@
             NSData *safeData = [NSJSONSerialization dataWithJSONObject:backupDict options:0 error:nil];
             if (safeData) {
                 [[NSUserDefaults standardUserDefaults] setObject:safeData forKey:@"ARLocalDowngradeBackupData"];
+                // 🎯 核心修改：保存备份的具体时间
+                [[NSUserDefaults standardUserDefaults] setObject:[NSDate date] forKey:@"ARLocalDowngradeBackupTime"];
                 [[NSUserDefaults standardUserDefaults] synchronize];
             }
             if (completion) {

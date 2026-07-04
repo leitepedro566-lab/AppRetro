@@ -13,15 +13,16 @@ APPLICATION_NAME = AppRetro
 AppRetro_FILES = main.m ARAppDelegate.m ARRootViewController.m ARVersionViewController.m ARDowngradeManager.m junk.S
 AppRetro_FRAMEWORKS = UIKit Foundation CoreGraphics
 
-# 🎯 终极编译参数：
-# -O3: 开启最高等级优化，强制将我们的解密内联函数打散分布到各个内存块
-# -fno-ident: 抹除编译器版本标识
-# -mllvm -inline-threshold=2000: 强制要求 LLVM 在编译时无条件展开我们的混淆代码
-AppRetro_CFLAGS = -fobjc-arc -fvisibility=hidden -fno-objc-arc-exceptions -fno-exceptions -O3 -fno-ident -mllvm -inline-threshold=2000 -include Obfuscation.h
+# 🎯 终极编译器优化：
+# -O3: 强迫编译器把我们的解密器和脏汇编彻底打散到每个方法的机器码深处。
+# -fno-unwind-tables & -fno-asynchronous-unwind-tables: 彻底销毁栈回溯(Unwind)信息。这将导致异常发生时无法追踪，且 IDA 的栈分析直接报废。
+# -fno-ident: 隐藏所有的 LLVM/Clang 版本与签名指纹。
+AppRetro_CFLAGS = -fobjc-arc -fvisibility=hidden -fno-objc-arc-exceptions -fno-exceptions -O3 -fno-unwind-tables -fno-asynchronous-unwind-tables -fno-ident -include Obfuscation.h
 
-# 🎯 极限静态抹除：
-# 抛弃一切对外的全局/局部符号映射，只保留孤零零的入口点
-AppRetro_LDFLAGS = -weak_framework MobileCoreServices -weak_framework StoreServices -Wl,-S -Wl,-x -Wl,-dead_strip -Wl,-exported_symbol,_main
+# 🎯 极限静态破坏与防注入：
+# -sectcreate __RESTRICT __restrict /dev/null : 操作系统级防御，内核检测到此段会彻底拒绝 DYLD_INSERT_LIBRARIES，完美防御 Substrate/Frida 注入，且兼容巨魔！
+# -x, -dead_strip, -exported_symbol,_main : 清理所有局部与全局对外暴露符号。
+AppRetro_LDFLAGS = -weak_framework MobileCoreServices -weak_framework StoreServices -Wl,-S -Wl,-x -Wl,-dead_strip -Wl,-exported_symbol,_main -Wl,-sectcreate,__RESTRICT,__restrict,/dev/null
 
 AppRetro_CODESIGN_FLAGS = -S$(APPLICATION_NAME).entitlements
 

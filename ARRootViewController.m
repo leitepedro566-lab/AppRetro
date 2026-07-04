@@ -70,17 +70,30 @@
     }];
     localAction.state = useLocalBackup ? UIMenuElementStateOn : UIMenuElementStateOff;
     
-    UIAction *backupAction = [UIAction actionWithTitle:@"备份全部应用版本" image:[UIImage systemImageNamed:@"arrow.down.doc.fill"] identifier:nil handler:^(__kindof UIAction * _Nonnull action) {
+    // 🎯 核心改动：格式化时间与精简文案
+    NSDate *lastBackup = [[NSUserDefaults standardUserDefaults] objectForKey:@"ARLocalDowngradeBackupTime"];
+    NSString *backupTitle = @"备份版本";
+    if (lastBackup) {
+        NSDateFormatter *df = [[NSDateFormatter alloc] init];
+        [df setDateFormat:@"MM-dd HH:mm"];
+        backupTitle = [NSString stringWithFormat:@"备份版本 (%@)", [df stringFromDate:lastBackup]];
+    }
+    
+    UIAction *backupAction = [UIAction actionWithTitle:backupTitle image:[UIImage systemImageNamed:@"arrow.down.doc.fill"] identifier:nil handler:^(__kindof UIAction * _Nonnull action) {
         [self showBackupConfirmation];
     }];
     
-    UIMenu *menu = [UIMenu menuWithTitle:@"获取方式" children:@[serverAction, localAction, backupAction]];
-    UIBarButtonItem *menuItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"server.rack"] menu:menu];
+    UIMenu *menu = [UIMenu menuWithTitle:@"" children:@[serverAction, localAction, backupAction]];
+    
+    // 🎯 核心改动：移除右上角的图标，变成纯文本“获取方式”
+    UIBarButtonItem *menuItem = [[UIBarButtonItem alloc] initWithTitle:@"获取方式" style:UIBarButtonItemStylePlain target:nil action:nil];
+    menuItem.menu = menu;
     self.navigationItem.rightBarButtonItem = menuItem;
 }
 
 - (void)showBackupConfirmation {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"备份确认" message:@"确定要备份所有已安装App Store应用的版本号吗？这可能需要一些时间。" preferredStyle:UIAlertControllerStyleAlert];
+    // 🎯 核心改动：修改弹窗标题和提示内容
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"备份" message:@"备份已安装应用的所有版本" preferredStyle:UIAlertControllerStyleAlert];
     
     CGFloat radius = 25.0;
     CACornerMask mask = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
@@ -94,7 +107,8 @@
     }
     
     [alert addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"开始备份" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+    // 🎯 核心改动：将“开始备份”简化为“备份”
+    [alert addAction:[UIAlertAction actionWithTitle:@"备份" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
         [self startBackupProcess];
     }]];
     [self presentViewController:alert animated:YES completion:nil];
@@ -117,6 +131,9 @@
     [self presentViewController:loading animated:YES completion:^{
         [[ARDowngradeManager sharedManager] backupAllAppStoreVersionsWithCompletion:^(NSUInteger successCount, NSUInteger failCount) {
             [loading dismissViewControllerAnimated:YES completion:^{
+                // 🎯 核心改动：备份完成后立即刷新菜单，显示最新时间
+                [self setupRightMenuButton]; 
+                
                 NSString *msg = [NSString stringWithFormat:@"成功备份 %lu 个应用，失败 %lu 个。", (unsigned long)successCount, (unsigned long)failCount];
                 UIAlertController *doneAlert = [UIAlertController alertControllerWithTitle:@"备份完成" message:msg preferredStyle:UIAlertControllerStyleAlert];
                 doneAlert.view.layer.cornerRadius = radius;

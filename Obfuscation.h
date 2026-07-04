@@ -2,7 +2,7 @@
 #ifndef Obfuscation_h
 #define Obfuscation_h
 
-#ifdef __OBJC__ 
+#ifdef __OBJC__
 
 #import <Foundation/Foundation.h>
 #import <dlfcn.h>
@@ -10,45 +10,56 @@
 #import <sys/sysctl.h>
 #import <unistd.h>
 
-// 🎯 毒化节区注入：故意向 ObjC Metadata 注入破坏性控制字符，直接令 class-dump 和 Hopper 解析崩溃或乱码
+// 🎯 全局 Metadata 深度毒化：埋设导致正则表达式崩溃与指针解析越界的“地雷”
+// 针对 class-dump, dsdump, Hopper 等静态分析工具的解析引擎进行破坏
 __asm__(
     ".section __TEXT,__objc_classname,cstring_literals\n"
     ".asciz \"\\x01\\x02\\x03\\x04\\x05\\x06\\x07\\x08\\x09\\x0B\\x0C\\x0E\\x0F\"\n"
-    ".asciz \"<Invalid_Class_Dump_Crash>\"\n"
+    ".asciz \"+[-[\\\\^$*+?.()|{}[]\"\n"
+    ".section __TEXT,__objc_methname,cstring_literals\n"
+    ".asciz \"\\x01\\x02\\x03\\x04\\x05\\x06\\x07\\x08\\x09\\x0B\\x0C\\x0E\\x0F\"\n"
+    ".asciz \"!@#%&*;:'\\\"<>,./?~`\"\n"
+    ".section __TEXT,__objc_methtype,cstring_literals\n"
+    ".asciz \"\\x01\\x02\\x03\\x04\\x05\\x06\\x07\\x08\\x09\\x0B\\x0C\\x0E\\x0F\"\n"
+    ".asciz \"v@:!\"\n"
 );
 
-// 1. Classes - 顶级“条形码”类名混淆 (乱码化)
-#define ARAppDelegate                  _l1Il0O1lI_
-#define ARDowngradeManager             _O01lIl1O0_
-#define ARRootViewController           _lI1O0l1Il_
-#define ARVersionViewController        _1lI0OlI1l_
+// 1. Classes - 顶级超长条形码类名混淆 (34字)
+#define ARAppDelegate                          _O0OO0O0OO00O0OO0O0OO00O0OO0O0O0O0O0O_
+#define ARDowngradeManager                     _l1Il1I1lI11l1Il1I1lI11l1Il1I1l1I1l1_
+#define ARRootViewController                   _0O00O0O00O00O0O00O00O0O00O00O0O00O0_
+#define ARVersionViewController                _1l11l1l11l11l1l11l11l1l11l11l1l11l1_
 
-// 2. Properties & Ivars - 属性乱码化
-#define bundleID                       _ll11II00OO_
-#define appName                        _OO00II11ll_
-#define trackID                        _lI0O1lI0O1_
-#define versions                       _1O0Il1O0Il_
-#define arAllApps                      _l1I1O0O0lI_
-#define arFilteredApps                 _O0lIl1I1O0_
-#define arSearchController             _lI1O0O0l1I_
-#define appPhysicalPath                _1lI1O0lI0O_
+// 2. Properties & Ivars - 所有自定义属性超长混淆
+#define bundleID                               _O0l1I1l0O0l1I1l0O0l1I1l0O0l1I1l0O0l_
+#define appName                                _1Il0O0lI11Il0O0lI11Il0O0lI11Il0O0lI_
+#define trackID                                _O0O0l1I1l1l0O0O0l1I1l1l0O0O0l1I1l1l_
+#define versions                               _l1I1O0O0l0l1I1O0O0l0l1I1O0O0l0l1I1O_
+#define arAllApps                              _0O0l1I1l0O0O0l1I1l0O0O0l1I1l0O0O0l1_
+#define arFilteredApps                         _1lI1O0O0l11lI1O0O0l11lI1O0O0l11lI1O_
+#define arSearchController                     _O0l1I1l1O0O0l1I1l1O0O0l1I1l1O0O0l1I_
+#define appPhysicalPath                        _l1I1O0O0O0l1I1O0O0O0l1I1O0O0O0l1I1O_
 
-// 3. Custom Methods - 方法名乱码化
-#define fetchTrackIDForBundleID        _O01lI0lI1O_
-#define fetchVersionsForTrackID        _l1IO0l1O0I_
-#define verifyOwnershipForBundleID     _1lI0O1lI0O_
-#define executeAccountSwitchToName     _O0l1I1lI0O_
-#define installAppWithTrackID          _lI0O0l1I1l_
-#define fallbackInstallWithTrackID     _1O0I1lO0Il_
-#define executeDowngradeProcessWithVersionStr _l1I1lO0O0I_
-#define loadInstalledApps              _O0l1O0Il1I_
-#define arOpenTGChannel                _lI1O0l1O0I_
-#define sharedManager                  _1lI0Ol1O0I_
-#define recursiveFetchTrackID          _O01lI0l1O0_
-#define fetchVersionData               _ll0011IIOO_
-#define inputCustomVersion             _OO1100llII_
-#define applyRoundedUIToAlert          _1lI0O0l1I1_
-#define handleOwnershipMismatchWithPurchaser _O0l1I1O0Il_
+// 3. Custom Methods - 覆盖所有自定义内部方法超长混淆
+#define fetchTrackIDForBundleID                _0O00O0O0l1I1l11l1I1l10O00O0O0l1I1l1_
+#define fetchVersionsForTrackID                _1l11l1l1O0O0O00O0O0O01l11l1l1O0O0O0_
+#define verifyOwnershipForBundleID             _O0OO0O0Ol1I1l1l1I1l1lO0OO0O0Ol1I1l1_
+#define executeAccountSwitchToName             _l1Il1I1lO0O0O00O0O0O0l1Il1I1lO0O0O0_
+#define installAppWithTrackID                  _0O00O0O01lI1O0O0l0l0l0O00O0O01lI1O0_
+#define backupAllAppStoreVersionsWithCompletion _1l11l1l1O0l1I1l0O0l1I1l11l1l1O0l1I1_
+#define fallbackInstallWithTrackID             _O0OO0O0O1Il0O0lI11Il0O0OO0O0O1Il0O0_
+#define executeDowngradeProcessWithVersionStr  _l1Il1I1lO0O0l1I1l1l0Ol1Il1I1lO0O0l1_
+#define loadInstalledApps                      _0O00O0O0l1I1O0O0l0l1I0O00O0O0l1I1O0_
+#define arOpenTGChannel                        _1l11l1l1O0O0O0O0l1I1l1l11l1l1O0O0O0_
+#define sharedManager                          _O0OO0O0Ol1I1O0O0O0l1IO0OO0O0Ol1I1O0_
+#define recursiveFetchTrackID                  _l1Il1I1lO0l1I1l0O0l1Il1Il1I1lO0l1I1_
+#define setupRightMenuButton                   _0O00O0O01Il0O0lI11Il00O00O0O01Il0O0_
+#define showBackupConfirmation                 _1l11l1l1O0O0l1I1l1l0O1l11l1l1O0O0l1_
+#define startBackupProcess                     _O0OO0O0Ol1I1O0O0l0l0lO0OO0O0Ol1I1O0_
+#define fetchVersionData                       _l1Il1I1lO0l1I1l1O0O0ll1Il1I1lO0l1I1_
+#define inputCustomVersion                     _0O00O0O0l1I1O0O0O0l1I0O00O0O0l1I1O0_
+#define applyRoundedUIToAlert                  _1l11l1l10O00O0O0l1I1l1l11l1l10O00O0_
+#define handleOwnershipMismatchWithPurchaser   _O0OO0O0O1l11l1l1O0O0OO0OO0O0O1l11l1_
 
 // 4. 🎯 顶尖动态防护：反调试、反注入、反动态分析 (构造函数，在 main 之前多重触发执行)
 __attribute__((constructor)) static void _AR_SecInit_0x(void) {
@@ -81,7 +92,7 @@ static __attribute__((always_inline, nodebug)) inline NSString * _l1ll1l1O_(cons
     
     char *str = (char *)malloc(len / 2 + 1);
     for(int i = 0; i < len; i += 2) {
-        __asm__ __volatile__("nop");
+        __asm__ __volatile__("nop"); // 汇编级花指令
         char byte[3] = {hex[i], hex[i+1], 0};
         str[i/2] = (char)(strtol(byte, NULL, 16) ^ 0);
         junk1 += i; 

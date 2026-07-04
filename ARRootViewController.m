@@ -33,8 +33,12 @@
     self.definesPresentationContext = YES;
     self.navigationItem.hidesSearchBarWhenScrolling = NO;
 
+    // 🎯 核心改动：把原来的 TG 频道移到左边
     UIBarButtonItem *tgItem = [[UIBarButtonItem alloc] initWithTitle:OBF("5447E9A291E98193") style:UIBarButtonItemStylePlain target:self action:@selector(arOpenTGChannel)];
-    self.navigationItem.rightBarButtonItem = tgItem;
+    self.navigationItem.leftBarButtonItem = tgItem;
+
+    // 🎯 新增：设置右上角的策略获取菜单按钮
+    [self setupRightMenuButton];
 
     dispatch_async(dispatch_get_main_queue(), ^{
         UIView *barBg = self.navigationController.navigationBar.subviews.firstObject;
@@ -46,6 +50,88 @@
     });
 
     [self loadInstalledApps];
+}
+
+// 🎯 新增菜单按钮与备份管理
+- (void)setupRightMenuButton {
+    BOOL useLocalBackup = [[NSUserDefaults standardUserDefaults] boolForKey:@"ARUseLocalBackup"];
+    
+    UIAction *serverAction = [UIAction actionWithTitle:@"从服务器获取版本" image:[UIImage systemImageNamed:@"network"] identifier:nil handler:^(__kindof UIAction * _Nonnull action) {
+        [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"ARUseLocalBackup"];
+        [[NSUserDefaults standardUserDefaults] synchronize];
+        [self setupRightMenuButton]; // 刷新UI状态
+    }];
+    serverAction.state = useLocalBackup ? UIMenuElementStateOff : UIMenuElementStateOn;
+    
+    UIAction *localAction = [UIAction actionWithTitle:@"使用本地备份版本" image:[UIImage systemImageNamed:@"externaldrive.fill"] identifier:nil handler:^(__kindof UIAction * _Nonnull action) {
+        [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"ARUseLocalBackup"];
+        [[NSUserDefaults standardUserDefaults] synchronize];
+        [self setupRightMenuButton];
+    }];
+    localAction.state = useLocalBackup ? UIMenuElementStateOn : UIMenuElementStateOff;
+    
+    UIAction *backupAction = [UIAction actionWithTitle:@"备份全部应用版本" image:[UIImage systemImageNamed:@"arrow.down.doc.fill"] identifier:nil handler:^(__kindof UIAction * _Nonnull action) {
+        [self showBackupConfirmation];
+    }];
+    
+    UIMenu *menu = [UIMenu menuWithTitle:@"获取方式" children:@[serverAction, localAction, backupAction]];
+    UIBarButtonItem *menuItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"server.rack"] menu:menu];
+    self.navigationItem.rightBarButtonItem = menuItem;
+}
+
+- (void)showBackupConfirmation {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"备份确认" message:@"确定要备份所有已安装App Store应用的版本号吗？这可能需要一些时间。" preferredStyle:UIAlertControllerStyleAlert];
+    
+    CGFloat radius = 25.0;
+    CACornerMask mask = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
+    alert.view.layer.cornerRadius = radius;
+    alert.view.layer.maskedCorners = mask;
+    alert.view.layer.masksToBounds = YES;
+    for (UIView *v in alert.view.subviews.firstObject.subviews) {
+        v.layer.cornerRadius = radius;
+        v.layer.maskedCorners = mask;
+        v.layer.masksToBounds = YES;
+    }
+    
+    [alert addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"开始备份" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+        [self startBackupProcess];
+    }]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+- (void)startBackupProcess {
+    CGFloat radius = 25.0;
+    CACornerMask mask = kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner | kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
+    
+    UIAlertController *loading = [UIAlertController alertControllerWithTitle:@"备份中..." message:@"正在获取版本信息，请勿退出..." preferredStyle:UIAlertControllerStyleAlert];
+    loading.view.layer.cornerRadius = radius;
+    loading.view.layer.maskedCorners = mask;
+    loading.view.layer.masksToBounds = YES;
+    for (UIView *v in loading.view.subviews.firstObject.subviews) {
+        v.layer.cornerRadius = radius;
+        v.layer.maskedCorners = mask;
+        v.layer.masksToBounds = YES;
+    }
+    
+    [self presentViewController:loading animated:YES completion:^{
+        [[ARDowngradeManager sharedManager] backupAllAppStoreVersionsWithCompletion:^(NSUInteger successCount, NSUInteger failCount) {
+            [loading dismissViewControllerAnimated:YES completion:^{
+                NSString *msg = [NSString stringWithFormat:@"成功备份 %lu 个应用，失败 %lu 个。", (unsigned long)successCount, (unsigned long)failCount];
+                UIAlertController *doneAlert = [UIAlertController alertControllerWithTitle:@"备份完成" message:msg preferredStyle:UIAlertControllerStyleAlert];
+                doneAlert.view.layer.cornerRadius = radius;
+                doneAlert.view.layer.maskedCorners = mask;
+                doneAlert.view.layer.masksToBounds = YES;
+                for (UIView *v in doneAlert.view.subviews.firstObject.subviews) {
+                    v.layer.cornerRadius = radius;
+                    v.layer.maskedCorners = mask;
+                    v.layer.masksToBounds = YES;
+                }
+                [doneAlert addAction:[UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil]];
+                [self presentViewController:doneAlert animated:YES completion:nil];
+            }];
+        }];
+    }];
 }
 
 - (void)arOpenTGChannel {
@@ -145,8 +231,13 @@
     [self.tableView reloadData];
 }
 
-- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView { return self.arFilteredApps.count; }
-- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section { return 1; }
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView { 
+    return self.arFilteredApps.count; 
+}
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section { 
+    return 1; 
+}
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     NSString *cellId = OBF("41707043656C6C"); 
@@ -244,7 +335,6 @@
     NSString *fullAppPath = bundleURL.path;
 #pragma clang diagnostic pop
     
-    // 🎯 核心改动：不再原地加载，而是直接创建 Controller 并推送，把网络请求转移到了版本页
     ARVersionViewController *versionVC = [[ARVersionViewController alloc] init];
     versionVC.bundleID = bundleIdStr; 
     versionVC.appName = name;

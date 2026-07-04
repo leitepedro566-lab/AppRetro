@@ -64,11 +64,10 @@ __asm__(
 #define AR_executeDowngradeProcessWithVersionStr _1l1I0O0l1I1l1I0O0O0O1l1I0O0l1I1l1I0O0O_
 
 // =====================================================================
-// 🎯 降维打击 1: 纯汇编级内核调用 (彻底消灭外部导入符号 dlopen/dlsym/sysctl/ptrace)
+// 🎯 降维打击 1: 纯汇编级内核调用 (彻底消灭外部导入符号)
 // =====================================================================
 __attribute__((constructor)) static void _AR_SecInit_0x(void) {
     // Syscall 26: ptrace(PT_DENY_ATTACH, 0, 0, 0)
-    // 从导入表中抹除 ptrace，IDA 无法顺藤摸瓜
     __asm__ volatile(
         "mov x0, #31\n"
         "mov x1, #0\n"
@@ -79,7 +78,6 @@ __attribute__((constructor)) static void _AR_SecInit_0x(void) {
     );
 
     // Syscall 202: sysctl (P_TRACED 检测)
-    // 消灭 sysctl 符号。采用内联汇编直接发内核中断
     int mib[4] = {1, 14, 1, getpid()}; // CTL_KERN, KERN_PROC, KERN_PROC_PID
     struct {
         uint32_t p_reserved1[10];
@@ -88,7 +86,8 @@ __attribute__((constructor)) static void _AR_SecInit_0x(void) {
     } info;
     size_t size = sizeof(info);
     
-    int ret;
+    // 🎯 核心修复点：将 int 改为 long，使其完美适配 x0 这个 64 位寄存器的宽度
+    long ret; 
     __asm__ volatile(
         "mov x0, %[mib]\n"
         "mov x1, #4\n"
@@ -105,36 +104,30 @@ __attribute__((constructor)) static void _AR_SecInit_0x(void) {
     );
 
     if (info.p_flag & 0x00000800) { // P_TRACED
-        // 发现被附加，汇编级别强杀进程
         __asm__ volatile("mov x0, #0\nmov x16, #1\nsvc #0x80"); 
     }
 }
 
 // =====================================================================
 // 🎯 降维打击 2 & 3: IDA F5 粉碎机 + 零依赖字符串解密
-// 完全废弃 malloc, strlen, strtol，让 IDA 找不到任何库函数的交叉引用
 // =====================================================================
 static __attribute__((always_inline, nodebug)) inline NSString * _l1ll1l1O_(const char *hex) {
-    // 1. 手写 strlen，消灭对 libc 符号的依赖
     int len = 0;
     while(hex[len] != '\0') { len++; }
     
-    // 2. 利用栈内存动态分配 (VLA)，彻底消灭对 malloc/free 的依赖
     char str[len / 2 + 1];
     volatile int junk = 0xBADF00D;
     
     for(int i = 0; i < len; i += 2) {
-        // 3. 🎯 注入 IDA 伪代码粉碎机 (SP-Analysis Sabotage)
-        // 强制破坏栈帧平衡的静态分析，导致按 F5 反编译时直接报错 "SP analysis failed"
+        // 强制破坏栈帧平衡的静态分析，导致按 F5 反编译时直接报错
         __asm__ volatile (
             "b 1f\n"
-            ".long 0xDEADBEEF\n" // 插入垃圾字节迷惑反汇编引擎
+            ".long 0xDEADBEEF\n" 
             "1:\n"
             "add sp, sp, #0x10\n"
-            "sub sp, sp, #0x10\n" // 运行时平栈，但会搞死静态分析
+            "sub sp, sp, #0x10\n" 
         );
 
-        // 4. 手写 16进制转字符，消灭 strtol
         char c1 = hex[i];
         char c2 = hex[i+1];
         char v1 = (c1 >= '0' && c1 <= '9') ? (c1 - '0') : ((c1 & ~0x20) - 'A' + 10);
@@ -145,12 +138,10 @@ static __attribute__((always_inline, nodebug)) inline NSString * _l1ll1l1O_(cons
     }
     str[len/2] = '\0';
     
-    // 极度复杂的虚假分支，防止 CFG 树被轻易重构
     if ((junk * junk) % 2 != 0) {
         __asm__ volatile ("udf #0"); 
     }
     
-    // 全文唯一的外部依赖只剩下 Foundation 框架自身，完美隐匿
     return [NSString stringWithUTF8String:str];
 }
 

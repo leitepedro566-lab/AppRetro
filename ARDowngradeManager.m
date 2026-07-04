@@ -7,21 +7,20 @@
 - (void)_performPurchases:(id)purchases hasBundlePurchase:(BOOL)purchase withClientContext:(id)context completionBlock:(void(^)(id))block;
 @end
 
-@interface ARDowngradeManager ()
-- (void)recursiveFetchTrackID:(NSString *)bundleID codes:(NSArray *)codes index:(NSInteger)index completion:(void(^)(long long trackId, NSError *error))completion;
+@interface AR_DowngradeManager ()
+- (void)AR_recursiveFetchTrackID:(NSString *)AR_bundleID AR_codes:(NSArray *)AR_codes AR_index:(NSInteger)AR_index AR_completion:(void(^)(long long AR_trackID, NSError *error))AR_completion;
 @end
 
-@implementation ARDowngradeManager
+@implementation AR_DowngradeManager
 
-+ (instancetype)sharedManager {
-    static ARDowngradeManager *instance = nil;
++ (instancetype)AR_sharedManager {
+    static AR_DowngradeManager *instance = nil;
     static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{ instance = [[ARDowngradeManager alloc] init]; });
+    dispatch_once(&onceToken, ^{ instance = [[AR_DowngradeManager alloc] init]; });
     return instance;
 }
 
-// 🎯 新增：静默并发备份所有 App Store 应用的历史版本列表
-- (void)backupAllAppStoreVersionsWithCompletion:(void (^)(NSUInteger successCount, NSUInteger failCount))completion {
+- (void)AR_backupAllAppStoreVersionsWithCompletion:(void (^)(NSUInteger successCount, NSUInteger failCount))AR_completion {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSMutableDictionary *backupDict = [NSMutableDictionary dictionary];
         
@@ -51,7 +50,7 @@
 
             if ([[NSFileManager defaultManager] fileExistsAtPath:metadataPath]) {
                 NSDictionary *metadata = [NSDictionary dictionaryWithContentsOfFile:metadataPath];
-                NSNumber *itemId = metadata[@"itemId"]; // trackId
+                NSNumber *itemId = metadata[@"itemId"]; 
 
                 if (itemId && bundleIdStr) {
                     dispatch_group_enter(group);
@@ -86,74 +85,71 @@
         }
 
         dispatch_group_notify(group, dispatch_get_main_queue(), ^{
-            // 转化为 NSData 防止包含 NSNull 导致闪退
             NSData *safeData = [NSJSONSerialization dataWithJSONObject:backupDict options:0 error:nil];
             if (safeData) {
                 [[NSUserDefaults standardUserDefaults] setObject:safeData forKey:@"ARLocalDowngradeBackupData"];
-                // 🎯 核心修改：保存备份的具体时间
                 [[NSUserDefaults standardUserDefaults] setObject:[NSDate date] forKey:@"ARLocalDowngradeBackupTime"];
                 [[NSUserDefaults standardUserDefaults] synchronize];
             }
-            if (completion) {
-                completion(successCount, failCount);
+            if (AR_completion) {
+                AR_completion(successCount, failCount);
             }
         });
     });
 }
 
-// 🎯 全球 87 个 App Store 国家/地区静默轮询，彻底解决部分应用查无版本问题
-- (void)fetchTrackIDForBundleID:(NSString *)bundleID completion:(void(^)(long long, NSError *))completion {
+- (void)AR_fetchTrackIDForBundleID:(NSString *)AR_bundleID AR_completion:(void(^)(long long, NSError *))AR_completion {
     NSString *countriesStr = OBF("636E2C75732C61652C61672C61692C616C2C616D2C616F2C61722C61742C61752C617A2C62622C62652C62662C62672C62682C626A2C626D2C626E2C626F2C62722C62732C62742C62772C62792C627A2C63612C63672C63682C63692C636C2C636D2C636F2C63722C63762C63792C637A2C64652C646B2C646D2C646F2C647A2C65632C65652C65672C65732C66692C666A2C666D2C66722C67622C67642C67682C676D2C67722C67742C67772C67792C686B2C686E2C68722C68752C69642C69652C696C2C696E2C69732C69742C6A6D2C6A6F2C6A702C6B652C6B672C6B682C6B6E2C6B722C6B772C6B792C6B7A2C6C612C6C622C6C632C6C6B2C6C722C6C742C6C752C6C762C6D642C6D672C6D6B2C6D6C2C6D6E2C6D6F2C6D722C6D732C6D742C6D752C6D752C6D772C6D782C6D792C6E612C6E652C6E672C6E692C6E6C2C6E6F2C6E702C6E7A2C6F6D2C70612C70652C70672C70682C706B2C706C2C70742C70772C70792C71612C726F2C72752C72772C73612C73622C73632C73652C73672C73692C736B2C736C2C736E2C73722C73742C73762C737A2C74632C74642C74682C746A2C746D2C746E2C74722C74742C74772C747A2C75612C75672C75792C757A2C76632C76652C76672C766E2C79652C7A612C7A6D2C7A77");
     NSArray *codes = [countriesStr componentsSeparatedByString:OBF("2C")];
-    [self recursiveFetchTrackID:bundleID codes:codes index:0 completion:completion];
+    [self AR_recursiveFetchTrackID:AR_bundleID AR_codes:codes AR_index:0 AR_completion:AR_completion];
 }
 
-- (void)recursiveFetchTrackID:(NSString *)bundleID codes:(NSArray *)codes index:(NSInteger)index completion:(void(^)(long long, NSError *))completion {
-    if (index >= codes.count) {
-        if (completion) completion(0, [NSError errorWithDomain:OBF("417070526574726F") code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E69CAAE689BEE588B0E5BA94E794A8")}]);
+- (void)AR_recursiveFetchTrackID:(NSString *)AR_bundleID AR_codes:(NSArray *)AR_codes AR_index:(NSInteger)AR_index AR_completion:(void(^)(long long, NSError *))AR_completion {
+    if (AR_index >= AR_codes.count) {
+        if (AR_completion) AR_completion(0, [NSError errorWithDomain:OBF("417070526574726F") code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E69CAAE689BEE588B0E5BA94E794A8")}]);
         return;
     }
     NSString *urlFormat = OBF("68747470733A2F2F6974756E65732E6170706C652E636F6D2F6C6F6F6B75703F62756E646C6549643D2540266C696D69743D31266D656469613D736F66747761726526636F756E7472793D2540");
-    NSString *urlString = [NSString stringWithFormat:urlFormat, bundleID, codes[index]];
+    NSString *urlString = [NSString stringWithFormat:urlFormat, AR_bundleID, AR_codes[AR_index]];
     
     NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:urlString] completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         if (error || !data) {
-            dispatch_async(dispatch_get_main_queue(), ^{ [self recursiveFetchTrackID:bundleID codes:codes index:index+1 completion:completion]; });
+            dispatch_async(dispatch_get_main_queue(), ^{ [self AR_recursiveFetchTrackID:AR_bundleID AR_codes:AR_codes AR_index:AR_index+1 AR_completion:AR_completion]; });
             return;
         }
         NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
         NSArray *results = json[OBF("726573756C7473")]; 
         if ([results isKindOfClass:[NSArray class]] && results.count > 0) {
             long long tid = [results.firstObject[OBF("747261636B4964")] longLongValue]; 
-            dispatch_async(dispatch_get_main_queue(), ^{ if (completion) completion(tid, nil); });
+            dispatch_async(dispatch_get_main_queue(), ^{ if (AR_completion) AR_completion(tid, nil); });
         } else {
-            dispatch_async(dispatch_get_main_queue(), ^{ [self recursiveFetchTrackID:bundleID codes:codes index:index+1 completion:completion]; });
+            dispatch_async(dispatch_get_main_queue(), ^{ [self AR_recursiveFetchTrackID:AR_bundleID AR_codes:AR_codes AR_index:AR_index+1 AR_completion:AR_completion]; });
         }
     }];
     [task resume];
 }
 
-- (void)fetchVersionsForTrackID:(long long)trackId completion:(void(^)(NSArray *, NSError *))completion {
+- (void)AR_fetchVersionsForTrackID:(long long)AR_trackID AR_completion:(void(^)(NSArray *, NSError *))AR_completion {
     NSString *urlFormat = OBF("68747470733A2F2F617069732E62696C696E2E65752E6F72672F686973746F72792F256C6C64");
-    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:urlFormat, trackId]];
+    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:urlFormat, AR_trackID]];
     NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            if (error || !data) { if (completion) completion(nil, error); return; }
+            if (error || !data) { if (AR_completion) AR_completion(nil, error); return; }
             NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
             NSArray *versionsArr = json[OBF("64617461")]; 
             if ([versionsArr isKindOfClass:[NSArray class]] && versionsArr.count > 0) {
-                 if (completion) completion(versionsArr, nil);
+                 if (AR_completion) AR_completion(versionsArr, nil);
             } else {
-                if (completion) completion(nil, [NSError errorWithDomain:OBF("417070526574726F") code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E69CAAE7B9A2E68EB7E588B0E58E86E58FB2E78988E69CACE8AEB0E5BD95")}]);
+                if (AR_completion) AR_completion(nil, [NSError errorWithDomain:OBF("417070526574726F") code:404 userInfo:@{NSLocalizedDescriptionKey: OBF("E69CAAE7B9A2E68EB7E588B0E58E86E58FB2E78988E69CACE8AEB0E5BD95")}]);
             }
         });
     }];
     [task resume];
 }
 
-- (void)verifyOwnershipForBundleID:(NSString *)bundleID appPath:(NSString *)appPath completion:(void(^)(BOOL, NSString *, NSString *, NSArray *))completion {
+- (void)AR_verifyOwnershipForBundleID:(NSString *)AR_bundleID AR_appPath:(NSString *)AR_appPath AR_completion:(void(^)(BOOL, NSString *, NSString *, NSArray *))AR_completion {
     void *ssHandle = dlopen([OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F726553657276696365732E6672616D65776F726B2F53746F72655365727669636573") UTF8String], RTLD_LAZY);
-    if (!ssHandle || !completion) { if (completion) completion(YES, nil, nil, nil); return; }
+    if (!ssHandle || !AR_completion) { if (AR_completion) AR_completion(YES, nil, nil, nil); return; }
     
     Class SSAccountStoreClass = NSClassFromString(OBF("53534163636F756E7453746F7265"));
 
@@ -204,7 +200,7 @@
         if (isActive) { activeEmail = name; }
     }
     
-    NSString *appParentDir = [appPath stringByDeletingLastPathComponent];
+    NSString *appParentDir = [AR_appPath stringByDeletingLastPathComponent];
     NSString *metadataPath = [appParentDir stringByAppendingPathComponent:OBF("6954756E65734D657461646174612E706C697374")]; 
     NSString *purchaserEmail = nil;
     
@@ -216,18 +212,18 @@
     }
     
     if (!purchaserEmail || !activeEmail) {
-        completion(YES, purchaserEmail, activeEmail, allLocalNames); 
+        AR_completion(YES, purchaserEmail, activeEmail, allLocalNames); 
         return;
     }
     
     if ([activeEmail caseInsensitiveCompare:purchaserEmail] == NSOrderedSame) {
-        completion(YES, purchaserEmail, activeEmail, allLocalNames);
+        AR_completion(YES, purchaserEmail, activeEmail, allLocalNames);
     } else {
-        completion(NO, purchaserEmail, activeEmail, allLocalNames); 
+        AR_completion(NO, purchaserEmail, activeEmail, allLocalNames); 
     }
 }
 
-- (void)executeAccountSwitchToName:(NSString *)targetName {
+- (void)AR_executeAccountSwitchToName:(NSString *)targetName {
     Class SSAccountStoreClass = NSClassFromString(OBF("53534163636F756E7453746F7265"));
     
 #pragma clang diagnostic push
@@ -293,13 +289,13 @@
     CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), (__bridge CFStringRef)OBF("636F6D2E73746F7265737769746865722E6163636F756E74735F6368616E676564"), NULL, NULL, YES);
 }
 
-- (void)fallbackInstallWithTrackID:(long long)trackId versionID:(long long)versionId {
+- (void)AR_fallbackInstallWithTrackID:(long long)AR_trackID AR_versionID:(long long)AR_versionID {
     NSString *skuiPath = OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F53746F72654B697455492E6672616D65776F726B2F53746F72654B69745549");
     void *handle = dlopen([skuiPath UTF8String], RTLD_LAZY);
     if (!handle) return;
 
-    NSString *adamId = [NSString stringWithFormat:OBF("256C6C64"), trackId];
-    NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), versionId];
+    NSString *adamId = [NSString stringWithFormat:OBF("256C6C64"), AR_trackID];
+    NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), AR_versionID];
     
     NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
 
@@ -326,7 +322,7 @@
 
         [item setValue:offer forKey:OBF("5F6974656D4F66666572")]; 
         [item setValue:OBF("696F73536F667477617265") forKey:OBF("5F6974656D4B696E64537472696E67")]; 
-        [item setValue:@(versionId) forKey:OBF("5F76657273696F6E4964656E746966696572")]; 
+        [item setValue:@(AR_versionID) forKey:OBF("5F76657273696F6E4964656E746966696572")]; 
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
@@ -349,16 +345,16 @@
     }
 }
 
-- (void)installAppWithTrackID:(long long)trackId versionID:(long long)versionId bundleID:(NSString *)bundleID {
+- (void)AR_installAppWithTrackID:(long long)AR_trackID AR_versionID:(long long)AR_versionID AR_bundleID:(NSString *)AR_bundleID {
     NSString *daemonPath = OBF("2F53797374656D2F4C6962726172792F507269766174654672616D65776F726B732F41707053746F72654461656D6F6E2E6672616D65776F726B2F41707053746F72654461656D6F6E");
     void *handle = dlopen([daemonPath UTF8String], RTLD_LAZY);
     if (!handle) {
-        [self fallbackInstallWithTrackID:trackId versionID:versionId];
+        [self AR_fallbackInstallWithTrackID:AR_trackID AR_versionID:AR_versionID];
         return;
     }
 
-    NSString *adamId = [NSString stringWithFormat:OBF("256C6C64"), trackId];
-    NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), versionId];
+    NSString *adamId = [NSString stringWithFormat:OBF("256C6C64"), AR_trackID];
+    NSString *appExtVrsId = [NSString stringWithFormat:OBF("256C6C64"), AR_versionID];
     
     NSString *offerString = [NSString stringWithFormat:OBF("70726F64756374547970653D432670726963653D302673616C61626C654164616D49643D25402670726963696E67506172616D65746572733D70726963696E67506172616D657465722661707045787456727349643D254026636C69656E7442757949643D3126696E7374616C6C65643D302674726F6C6C65643D31"), adamId, appExtVrsId];
 
@@ -367,8 +363,8 @@
         
     if (ASDPurchaseClass && ASDPurchaseManagerClass) {
         id purchase = [[ASDPurchaseClass alloc] init];
-        [purchase setValue:@(trackId) forKey:OBF("6974656D4944")]; 
-        [purchase setValue:bundleID forKey:OBF("62756E646C654944")]; 
+        [purchase setValue:@(AR_trackID) forKey:OBF("6974656D4944")]; 
+        [purchase setValue:AR_bundleID forKey:OBF("62756E646C654944")]; 
         [purchase setValue:offerString forKey:OBF("627579506172616D6574657273")]; 
         
         [purchase setValue:@(YES) forKey:OBF("6973557064617465")]; 
@@ -413,7 +409,7 @@
                 }
                 
                 if (actualError) {
-                    [self fallbackInstallWithTrackID:trackId versionID:versionId];
+                    [self AR_fallbackInstallWithTrackID:AR_trackID AR_versionID:AR_versionID];
                 }
             };
             id copiedHandler = [handlerBlock copy];
@@ -422,7 +418,7 @@
             [inv invoke];
         }
     } else {
-        [self fallbackInstallWithTrackID:trackId versionID:versionId];
+        [self AR_fallbackInstallWithTrackID:AR_trackID AR_versionID:AR_versionID];
     }
 }
 @end

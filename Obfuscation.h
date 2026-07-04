@@ -2,7 +2,6 @@
 #ifndef Obfuscation_h
 #define Obfuscation_h
 
-// 🎯 新增环境检测宏：如果是编译 Objective-C 文件才加载，编译汇编文件则跳过
 #ifdef __OBJC__ 
 
 #import <Foundation/Foundation.h>
@@ -11,38 +10,45 @@
 #import <sys/sysctl.h>
 #import <unistd.h>
 
-// 1. Classes - 彻底打乱类名，从 Mach-O 符号表中抹除所有明文类名特征
-#define ARAppDelegate                  _X8jL2mQ9pA_
-#define ARDowngradeManager             _P3kR7xN1cL_
-#define ARRootViewController           _V9aB4wY2zM_
-#define ARVersionViewController        _M6tH1kF8dJ_
+// 🎯 毒化节区注入：故意向 ObjC Metadata 注入破坏性控制字符，直接令 class-dump 和 Hopper 解析崩溃或乱码
+__asm__(
+    ".section __TEXT,__objc_classname,cstring_literals\n"
+    ".asciz \"\\x01\\x02\\x03\\x04\\x05\\x06\\x07\\x08\\x09\\x0B\\x0C\\x0E\\x0F\"\n"
+    ".asciz \"<Invalid_Class_Dump_Crash>\"\n"
+);
 
-// 2. Properties & Ivars - 把所有属性变量变成绝对乱码符号
-#define bundleID                       _z9Q1wL3_
-#define appName                        _y4R8vB7_
-#define trackID                        _x2J5kN9_
-#define versions                       _w7P4mC2_
-#define arAllApps                      _v1H6tX5_
-#define arFilteredApps                 _u5D9gF1_
-#define arSearchController             _t8M2bS4_
-#define appPhysicalPath                _s3K7zV6_
+// 1. Classes - 顶级“条形码”类名混淆 (乱码化)
+#define ARAppDelegate                  _l1Il0O1lI_
+#define ARDowngradeManager             _O01lIl1O0_
+#define ARRootViewController           _lI1O0l1Il_
+#define ARVersionViewController        _1lI0OlI1l_
 
-// 3. Custom Methods - 彻底抹除所有自定义方法的特征签名
-#define fetchTrackIDForBundleID        _a7B2c8D_
-#define fetchVersionsForTrackID        _e4F9g1H_
-#define verifyOwnershipForBundleID     _i6J3k5L_
-#define executeAccountSwitchToName     _m8N2p4Q_
-#define installAppWithTrackID          _r1S7t9V_
-#define fallbackInstallWithTrackID     _w5X2y6Z_
-#define executeDowngradeProcessWithVersionStr _b3C8d1F_
-#define loadInstalledApps              _g5H2j9K_
-#define arOpenTGChannel                _l4M7n2P_
-#define sharedManager                  _q6R1s8T_
-#define recursiveFetchTrackID          _v3W9x4Y_
-#define fetchVersionData               _v1D9f4X_
-#define inputCustomVersion             _i2C8v5M_
-#define applyRoundedUIToAlert          _a3R7u6T_
-#define handleOwnershipMismatchWithPurchaser _h4O1m9W_
+// 2. Properties & Ivars - 属性乱码化
+#define bundleID                       _ll11II00OO_
+#define appName                        _OO00II11ll_
+#define trackID                        _lI0O1lI0O1_
+#define versions                       _1O0Il1O0Il_
+#define arAllApps                      _l1I1O0O0lI_
+#define arFilteredApps                 _O0lIl1I1O0_
+#define arSearchController             _lI1O0O0l1I_
+#define appPhysicalPath                _1lI1O0lI0O_
+
+// 3. Custom Methods - 方法名乱码化
+#define fetchTrackIDForBundleID        _O01lI0lI1O_
+#define fetchVersionsForTrackID        _l1IO0l1O0I_
+#define verifyOwnershipForBundleID     _1lI0O1lI0O_
+#define executeAccountSwitchToName     _O0l1I1lI0O_
+#define installAppWithTrackID          _lI0O0l1I1l_
+#define fallbackInstallWithTrackID     _1O0I1lO0Il_
+#define executeDowngradeProcessWithVersionStr _l1I1lO0O0I_
+#define loadInstalledApps              _O0l1O0Il1I_
+#define arOpenTGChannel                _lI1O0l1O0I_
+#define sharedManager                  _1lI0Ol1O0I_
+#define recursiveFetchTrackID          _O01lI0l1O0_
+#define fetchVersionData               _ll0011IIOO_
+#define inputCustomVersion             _OO1100llII_
+#define applyRoundedUIToAlert          _1lI0O0l1I1_
+#define handleOwnershipMismatchWithPurchaser _O0l1I1O0Il_
 
 // 4. 🎯 顶尖动态防护：反调试、反注入、反动态分析 (构造函数，在 main 之前多重触发执行)
 __attribute__((constructor)) static void _AR_SecInit_0x(void) {
@@ -69,14 +75,13 @@ __attribute__((constructor)) static void _AR_SecInit_0x(void) {
 static __attribute__((always_inline, nodebug)) inline NSString * _l1ll1l1O_(const char *hex) {
     int len = (int)strlen(hex);
     
-    // 虚假控制流与寄存器状态污染
     volatile int junk1 = 0xDEADBEEF;
     volatile int junk2 = 0xCAFEBABE;
     junk1 ^= junk2;
     
     char *str = (char *)malloc(len / 2 + 1);
     for(int i = 0; i < len; i += 2) {
-        __asm__ __volatile__("nop"); // 汇编级花指令，破坏反编译器对循环的推断
+        __asm__ __volatile__("nop");
         char byte[3] = {hex[i], hex[i+1], 0};
         str[i/2] = (char)(strtol(byte, NULL, 16) ^ 0);
         junk1 += i; 
@@ -86,7 +91,7 @@ static __attribute__((always_inline, nodebug)) inline NSString * _l1ll1l1O_(cons
     free(str);
     
     if (junk1 == 0x12345678) {
-        __asm__ __volatile__("udf #0"); // 迷惑性分支，故意抛出非法指令，永远不会执行到这
+        __asm__ __volatile__("udf #0"); 
     }
     
     return res;
@@ -94,6 +99,6 @@ static __attribute__((always_inline, nodebug)) inline NSString * _l1ll1l1O_(cons
 
 #define OBF(x) _l1ll1l1O_(x)
 
-#endif /* __OBJC__ */ // 🎯 结束环境检测宏
+#endif /* __OBJC__ */
 
 #endif /* Obfuscation_h */

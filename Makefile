@@ -10,19 +10,19 @@ include $(THEOS)/makefiles/common.mk
 
 APPLICATION_NAME = AppRetro
 
-# 🎯 注意：文件列表中新增了我们将要动态生成的 junk.S
 AppRetro_FILES = main.m ARAppDelegate.m ARRootViewController.m ARVersionViewController.m ARDowngradeManager.m junk.S
 AppRetro_FRAMEWORKS = UIKit Foundation CoreGraphics
 
 AppRetro_CFLAGS = -fobjc-arc -fvisibility=hidden -include Obfuscation.h
-# 🎯 LDFLAGS 中已包含 -Wl,-S -Wl,-x -Wl,-dead_strip（移除局部/全局符号表，并剔除无用代码）
-AppRetro_LDFLAGS = -weak_framework MobileCoreServices -weak_framework StoreServices -Wl,-S -Wl,-x -Wl,-dead_strip
+
+# 🎯 核心改动：在尾部追加了 -Wl,-exported_symbol,_main
+# 这会强制链接器丢弃除了启动函数外的所有导出符号，配合 -x 局部符号抹除，能让符号表彻底变为空
+AppRetro_LDFLAGS = -weak_framework MobileCoreServices -weak_framework StoreServices -Wl,-S -Wl,-x -Wl,-dead_strip -Wl,-exported_symbol,_main
 
 AppRetro_CODESIGN_FLAGS = -S$(APPLICATION_NAME).entitlements
 
 include $(THEOS_MAKE_PATH)/application.mk
 
-# 🎯 编译前置 Hook：自动生成 0.5MB 随机垃圾数据，并转为汇编代码强制打入二进制常量区
 before-all::
 	@echo "Generating 0.5MB junk data to bloat binary..."
 	@dd if=/dev/urandom of=junk.dat bs=1024 count=512 2>/dev/null

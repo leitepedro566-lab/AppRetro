@@ -1,7 +1,7 @@
 DEBUG = 0
 FINALPACKAGE = 1
 
-ARCHS := arm64 arm64e
+ARCHS := arm64
 TARGET := iphone:clang:15.6:14.0
 
 INSTALL_TARGET_PROCESSES = AppRetro

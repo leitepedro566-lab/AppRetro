@@ -56,14 +56,16 @@
 - (void)setupRightMenuButton {
     BOOL useLocalBackup = [[NSUserDefaults standardUserDefaults] boolForKey:@"ARUseLocalBackup"];
     
-    UIAction *serverAction = [UIAction actionWithTitle:@"从服务器获取版本" image:[UIImage systemImageNamed:@"network"] identifier:nil handler:^(__kindof UIAction * _Nonnull action) {
+    // 🎯 去掉图标
+    UIAction *serverAction = [UIAction actionWithTitle:@"从服务器获取版本" image:nil identifier:nil handler:^(__kindof UIAction * _Nonnull action) {
         [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"ARUseLocalBackup"];
         [[NSUserDefaults standardUserDefaults] synchronize];
         [self setupRightMenuButton]; // 刷新UI状态
     }];
     serverAction.state = useLocalBackup ? UIMenuElementStateOff : UIMenuElementStateOn;
     
-    UIAction *localAction = [UIAction actionWithTitle:@"使用本地备份版本" image:[UIImage systemImageNamed:@"externaldrive.fill"] identifier:nil handler:^(__kindof UIAction * _Nonnull action) {
+    // 🎯 去掉图标
+    UIAction *localAction = [UIAction actionWithTitle:@"使用本地备份版本" image:nil identifier:nil handler:^(__kindof UIAction * _Nonnull action) {
         [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"ARUseLocalBackup"];
         [[NSUserDefaults standardUserDefaults] synchronize];
         [self setupRightMenuButton];
@@ -79,7 +81,8 @@
         backupTitle = [NSString stringWithFormat:@"备份版本 (%@)", [df stringFromDate:lastBackup]];
     }
     
-    UIAction *backupAction = [UIAction actionWithTitle:backupTitle image:[UIImage systemImageNamed:@"arrow.down.doc.fill"] identifier:nil handler:^(__kindof UIAction * _Nonnull action) {
+    // 🎯 去掉图标
+    UIAction *backupAction = [UIAction actionWithTitle:backupTitle image:nil identifier:nil handler:^(__kindof UIAction * _Nonnull action) {
         [self showBackupConfirmation];
     }];
     

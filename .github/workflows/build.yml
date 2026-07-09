@@ -7,7 +7,7 @@ on:
 jobs:
   build:
     name: Build IPA with Theos
-    runs-on: macos-latest
+    runs-on: macos-14
     
     env:
       THEOS: ${{ github.workspace }}/theos
